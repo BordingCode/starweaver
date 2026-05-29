@@ -25,6 +25,14 @@ const loop = new GameLoop({
 
 // ---------------- DOM helpers ----------------
 const SECTOR_NAMES = { 1: 'THE WEAVE', 2: 'THE HOLLOWS', 3: 'THE GLARE' };
+const BOSS_NAMES = { queen: 'THE WEAVER QUEEN', warden: 'THE GRAVE WARDEN', chrono: 'THE CHRONOMETH' };
+let bossBannerEl = null;
+function bossBanner(name) {
+  if (bossBannerEl) bossBannerEl.remove();
+  const b = el('div', 'boss-banner show', `<div class="bb-warn">⚠ WARNING ⚠</div><div class="bb-name">${name || 'BOSS'}</div>`);
+  document.body.append(b); bossBannerEl = b;
+  setTimeout(() => { if (b.isConnected) { b.classList.add('out'); setTimeout(() => b.remove(), 520); } }, 1600);
+}
 function el(tag, cls, html) { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; }
 function clearApp() { app.replaceChildren(); }
 
@@ -159,7 +167,8 @@ function resumeAfterUpgrade() {
   if (def && def.sector && (!prev || prev.sector !== def.sector) && SECTOR_NAMES[def.sector]) {
     toast(`SECTOR ${def.sector} · ${SECTOR_NAMES[def.sector]}`);
     setTimeout(() => { if (Game.screen === 'playing') toast(def.boss ? 'BOSS' : def.elite ? 'ELITE · CHAMPIONS' : def.label); }, 1900);
-  } else if (def) toast(def.boss ? 'BOSS' : def.elite ? 'ELITE · CHAMPIONS' : def.label);
+  } else if (def && def.boss) bossBanner(BOSS_NAMES[def.bossId] || 'BOSS');
+  else if (def) toast(def.elite ? 'ELITE · CHAMPIONS' : def.label);
   // first-ever champion wave: explain the rings so a new player can read the threat
   if (def && def.elite && !Game.meta.seenChampions) {
     Game.meta.seenChampions = true; saveMeta();
