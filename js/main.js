@@ -154,6 +154,11 @@ function resumeAfterUpgrade() {
   w.startWave(next);
   const def = w.waves[next];
   if (def) toast(def.boss ? 'BOSS' : def.elite ? 'ELITE · CHAMPIONS' : def.label);
+  // first-ever champion wave: explain the rings so a new player can read the threat
+  if (def && def.elite && !Game.meta.seenChampions) {
+    Game.meta.seenChampions = true; saveMeta();
+    setTimeout(() => { if (Game.screen === 'playing') toast('RINGED FOES ARE CHAMPIONS — DEADLIER, RICHER LOOT'); }, 2000);
+  }
 }
 
 function resumeEndless() {
@@ -438,6 +443,12 @@ function showGameOver(won) {
   s.append(el('div', 'stat-big', String(w.score)));
   s.append(el('div', 'stat-line', `Best: ${Game.meta.best}`));
   s.append(el('div', 'dust-line earned', `${iconSVG('spellpow')}<span>+${w.dustEarned || 0} Stardust  ·  ${Game.meta.dust || 0} total</span>`));
+  // pacts forged this run — gives the run a little story
+  if (w.pacts && w.pacts.length) {
+    const lo = el('div', 'loadout');
+    w.pacts.forEach((id) => { const p = PACTS.find((x) => x.id === id); if (p) lo.append(el('div', 'chip', `${iconSVG(p.icon)}<span>${p.name.replace('Pact of ', '')}</span>`)); });
+    s.append(el('div', 'stat-line', 'Pacts forged'), lo);
+  }
   if (won) {
     const cont = el('button', 'btn', '▸ Endless');
     cont.addEventListener('click', () => resumeEndless());
