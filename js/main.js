@@ -61,7 +61,7 @@ function buildHUD() {
   p.spells.forEach((id, slot) => {
     const def = SPELLS[id];
     const b = el('button', 'spell-btn' + (def.dash ? ' dash' : ''), `<div class="cd"></div><span>${def.icon}</span><span class="spell-key">${def.key}</span>`);
-    const cast = (ev) => { ev.preventDefault(); resumeAudio(); Game.world.castSpell(slot); };
+    const cast = (ev) => { ev.preventDefault(); if (Game.screen !== 'playing') return; resumeAudio(); Game.world.castSpell(slot); };
     b.addEventListener('pointerdown', cast, { passive: false });
     dock.append(b); spellBtns.push(b);
   });
