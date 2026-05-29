@@ -3,7 +3,7 @@ import { Pool } from '../engine/pool.js';
 import { TAU, clamp, dist, dist2, angle, hit } from '../engine/vec.js';
 import { FX, burst, shockwave, floatText, addTrauma, hitStop, screenFlash } from '../engine/fx.js';
 import { sfx } from '../audio.js';
-import { ENEMIES, SPELLS, buildWaves } from './content.js';
+import { ENEMIES, SPELLS, AFFIXES, AFFIX_KEYS, buildWaves } from './content.js';
 import { makePlayer } from './player.js';
 
 const MOVE_DEADZONE = 1.6;   // world units of pointer move below which we count as "still"
@@ -49,12 +49,18 @@ export class World {
     if (!def) { this.win(); return; }
     this.player.invuln = Math.max(this.player.invuln, i === 0 ? 1.4 : 0.7); // grace as a wave begins
     if (def.boss) { this.spawnBoss(def.bossId || 'queen'); return; }
+    // Champion affixes: Elite waves stamp 1 on every enemy; endless waves stamp
+    // a scaling number on a fraction of them (this is what makes endless escalate
+    // by *new behaviour* rather than pure HP inflation).
+    const aN = def.elite ? 1 : (def.affixN || 0);
+    const aFrac = def.elite ? 1 : (def.affixFrac || 0);
     let order = 0;
     for (const g of def.groups) {
       const pts = layout(g, this.rng);
       for (let k = 0; k < pts.length; k++) {
         const d = (g.formation === 'stream') ? (g.delay || 1) * k : 0;
-        this.spawnQueue.push({ type: g.type, x: pts[k].x, y: pts[k].y, baseX: pts[k].x, baseY: pts[k].y, mode: pts[k].mode, t: d + order * 0.04 });
+        const affixes = (aN > 0 && this.rng() < aFrac) ? this.rollAffixes(g.type, aN) : null;
+        this.spawnQueue.push({ type: g.type, x: pts[k].x, y: pts[k].y, baseX: pts[k].x, baseY: pts[k].y, mode: pts[k].mode, t: d + order * 0.04, affixes });
         order++;
       }
     }
@@ -75,10 +81,14 @@ export class World {
       const count = heavy ? 2 + Math.floor(n / 5) : 4 + Math.floor(n / 2);
       groups.push({ type, count: Math.min(heavy ? 5 : 12, count), formation: forms[type], delay: 0.9 });
     }
-    return { label: 'WAVE ' + (this.waves.length - 1 + n), groups, endlessWave: true };
+    // affix budget grows with depth: 1 affix from the start, 2 from wave ~4 on,
+    // applied to an increasing fraction of the swarm (capped so it stays readable).
+    const affixN = Math.min(2, 1 + Math.floor(n / 4));
+    const affixFrac = Math.min(0.6, 0.28 + n * 0.03);
+    return { label: 'WAVE ' + (this.waves.length - 1 + n), groups, endlessWave: true, affixN, affixFrac };
   }
 
-  spawnEnemy(type, x, y, baseX, baseY, mode) {
+  spawnEnemy(type, x, y, baseX, baseY, mode, affixes) {
     const def = ENEMIES[type];
     if (!def) return; // safety: ignore unknown types rather than crash
     const hpScale = 1 + this.wave * 0.12;
@@ -89,6 +99,7 @@ export class World {
       e.score = def.score; e.contact = def.contact || 8;
       e.mode = mode || 'formation';
       e.sinePhase = this.rng() * TAU;
+      e.fireMult = 1;
       e.fireT = def.fireEvery ? def.fireEvery[0] + this.rng() * (def.fireEvery[1] - def.fireEvery[0]) : 999;
       e.spawnAnim = 0.35;
       e.diveT = 0.5 + this.rng() * 1.5;
@@ -96,7 +107,34 @@ export class World {
       e.frozen = 0; e.burnT = 0; e.burnDmg = 0; e.flash = 0;
       e.shield = def.shield ? 1 : 0;
       e.isBoss = false; e.descend = def.slow ? 7 : 11;
+      // affix defaults (reset every spawn since the pool reuses objects)
+      e.affixes = null; e.dmgTaken = 1; e.heal = 0; e.reflect = 0; e.detonate = 0; e.forceSplit = null;
+      if (affixes && affixes.length) this.applyAffixes(e, affixes);
     });
+  }
+
+  applyAffixes(e, keys) {
+    e.affixes = keys;
+    for (const k of keys) {
+      const a = AFFIXES[k]; if (!a) continue;
+      if (a.dmgTaken != null) e.dmgTaken *= a.dmgTaken;
+      if (a.descendMult) e.descend *= a.descendMult;
+      if (a.fireMult) e.fireMult *= a.fireMult;
+      if (a.heal) e.heal += a.heal;
+      if (a.reflect) e.reflect = Math.max(e.reflect, a.reflect);
+      if (a.detonate) e.detonate = Math.max(e.detonate, a.detonate);
+      if (a.forceSplit) e.forceSplit = a.forceSplit;
+    }
+    e.fireT *= e.fireMult;              // first shot also comes sooner for Swift
+    e.score = Math.round(e.score * (1 + keys.length)); // richer reward for a champion
+  }
+
+  // pick `n` distinct affixes legal for this enemy type
+  rollAffixes(type, n) {
+    const pool = AFFIX_KEYS.filter((k) => !(AFFIXES[k].exclude || []).includes(type));
+    const out = [];
+    while (out.length < n && pool.length) out.push(pool.splice(Math.floor(this.rng() * pool.length), 1)[0]);
+    return out;
   }
 
   spawnBoss(bossId = 'queen') {
@@ -368,7 +406,7 @@ export class World {
       const s = this.spawnQueue[i];
       s.t -= dt;
       if (s.t <= 0) {
-        this.spawnEnemy(s.type, s.x, s.y, s.baseX, s.baseY, s.mode);
+        this.spawnEnemy(s.type, s.x, s.y, s.baseX, s.baseY, s.mode, s.affixes);
         this.spawnQueue.splice(i, 1);
       }
     }
@@ -392,6 +430,12 @@ export class World {
       if (e.frozen > 0) e.frozen -= dt;
 
       if (e.isBoss) { this.stepBoss(e, dt); return; }
+
+      // Vampiric champion: slowly knits its wounds (visible green flecks)
+      if (e.heal && e.hp < e.maxHp && e.spawnAnim <= 0) {
+        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * e.heal * dt);
+        if (Math.random() < 0.12) burst(e.x, e.y, 1, { color: '#5dffb0', speed: 24, life: 0.3, r: 2 });
+      }
 
       // movement by mode
       if (e.mode === 'dive') {
@@ -431,10 +475,10 @@ export class World {
           // two-stage: lock the player's position 0.7s out (telegraph), then fire there
           if (!e.locking && e.fireT <= 0.7) { e.locking = true; e.lockX = p.x; e.lockY = p.y; }
           e.teleP = e.locking ? clamp(1 - e.fireT / 0.7, 0, 1) : 0;
-          if (e.fireT <= 0) { this.fireBeam(e); e.locking = false; e.teleP = 0; e.fireT = e.def.fireEvery[0] + this.rng() * (e.def.fireEvery[1] - e.def.fireEvery[0]); }
+          if (e.fireT <= 0) { this.fireBeam(e); e.locking = false; e.teleP = 0; e.fireT = (e.def.fireEvery[0] + this.rng() * (e.def.fireEvery[1] - e.def.fireEvery[0])) * e.fireMult; }
         } else if (e.fireT <= 0) {
           this.enemyShoot(e);
-          e.fireT = e.def.fireEvery[0] + this.rng() * (e.def.fireEvery[1] - e.def.fireEvery[0]);
+          e.fireT = (e.def.fireEvery[0] + this.rng() * (e.def.fireEvery[1] - e.def.fireEvery[0])) * e.fireMult;
         }
       }
 
@@ -606,6 +650,11 @@ export class World {
         if (!b.alive || b.hitSet.has(e)) return;
         if (hit(b.x, b.y, b.r, e.x, e.y, e.r)) {
           b.hitSet.add(e);
+          // Warding champion: a chance to harmlessly snuff the shot (not meteors)
+          if (e.reflect && !b.meteor && this.rng() < e.reflect) {
+            burst(b.x, b.y, 3, { color: '#7fd6ff', speed: 70, life: 0.2, r: 2 });
+            b.alive = false; return;
+          }
           let dmg = b.dmg;
           if (e.shield && !b.meteor) dmg *= 0.5; // bulwark shrugs off half
           this.damageEnemy(e, dmg, b.x, b.y, b.crit);
@@ -686,6 +735,7 @@ export class World {
   damageEnemy(e, dmg, fx, fy, crit) {
     if (!e.alive) return;
     const p = this.player;
+    if (e.dmgTaken && e.dmgTaken !== 1) dmg *= e.dmgTaken; // Armored champions shrug off part of the hit
     e.hp -= dmg; e.flash = 1;
     sfx.hit();
     burst(fx, fy, crit ? 7 : 3, { color: crit ? '#ffd166' : '#fff', speed: crit ? 180 : 90, life: 0.3, r: crit ? 3 : 2 });
@@ -722,10 +772,17 @@ export class World {
     addTrauma(big ? 0.8 : 0.16);
     hitStop(big ? 0.12 : 0.03);
     if (big) { screenFlash(0.5, '255,77,157'); this.boss = null; }
+    // Volatile champion: detonates into a ring of bullets on death
+    if (e.detonate && !silent && !big) {
+      shockwave(e.x, e.y, { color: '#ff9f43', max: 70, dur: 0.35, width: 4 });
+      for (let i = 0; i < 8; i++) this.spawnEBullet(e.x, e.y, (i / 8) * TAU + this.rng() * 0.3, 150, '#ff9f43', { dmg: e.detonate });
+      addTrauma(0.12);
+    }
     // chance to drop a pickup (more likely from tanky foes / bosses); biased to what you lack
     if (!silent) {
       const tanky = e.maxHp >= 14 || big;
-      const chance = big ? 1 : tanky ? 0.35 : 0.10;
+      let chance = big ? 1 : tanky ? 0.35 : 0.10;
+      if (e.affixes && e.affixes.length) chance = Math.min(1, chance + 0.25 * e.affixes.length); // champions reward you
       if (this.rng() < chance) {
         const wantHeal = p.hp < p.maxHp * 0.85 || p.maxShield === 0;
         const kind = big ? 'heal' : (wantHeal ? 'heal' : (this.rng() < 0.5 && p.maxShield > 0 ? 'shield' : 'heal'));
@@ -733,11 +790,12 @@ export class World {
         for (let k = 0; k < count; k++) this.dropPickup(e.x + (this.rng() - 0.5) * 40, e.y, kind);
       }
     }
-    // splitter
-    if (e.def.splits && !silent) {
+    // splitter (native) and Splitting champion both seed minis on death
+    const splitInto = e.def.splits || e.forceSplit;
+    if (splitInto && !silent) {
       for (let i = 0; i < 2; i++) {
         const bx = e.x + (i ? 24 : -24);
-        this.spawnEnemy(e.def.splits, bx, e.y, bx, e.y, 'formation');
+        this.spawnEnemy(splitInto, bx, e.y, bx, e.y, 'formation');
       }
     }
   }

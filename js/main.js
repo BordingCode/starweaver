@@ -151,7 +151,7 @@ function resumeAfterUpgrade() {
   setMusicIntensity(Math.min(1, next / 8));
   w.startWave(next);
   const def = w.waves[next];
-  if (def) toast(def.boss ? 'BOSS' : def.elite ? 'ELITE WAVE' : def.label);
+  if (def) toast(def.boss ? 'BOSS' : def.elite ? 'ELITE · CHAMPIONS' : def.label);
 }
 
 function resumeEndless() {

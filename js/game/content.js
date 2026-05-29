@@ -161,3 +161,17 @@ export function buildWaves() {
 }
 
 export const RARITY_WEIGHT = { common: 100, rare: 52, epic: 24 };
+
+// ---------------- ELITE AFFIXES ("Champions") ----------------
+// Modifiers stamped onto ordinary enemies (Elite waves + endless). Each is pure
+// data + a behaviour flag read at an existing world hook — no new enemy code.
+// `exclude` lists enemy types this affix must never roll on (avoids silliness/explosions).
+export const AFFIXES = {
+  armored:   { name: 'Armored',   tint: '#cfd8ff', glyph: 'shield',  dmgTaken: 0.55 },                 // damageEnemy: takes 45% less
+  swift:     { name: 'Swift',     tint: '#ffe49a', glyph: 'firerate', descendMult: 1.55, fireMult: 0.62 }, // stepEnemies: faster descent & shooting
+  volatile:  { name: 'Volatile',  tint: '#ff9f43', glyph: 'burn',     detonate: 10 },                  // killEnemy: bursts a ring of bullets
+  vampiric:  { name: 'Vampiric',  tint: '#5dffb0', glyph: 'lifesteal',heal: 0.05 },                    // stepEnemies: regenerates HP
+  warding:   { name: 'Warding',   tint: '#7fd6ff', glyph: 'shield',   reflect: 0.3 },                  // stepPlayerBullets: nullifies some shots
+  splitting: { name: 'Splitting', tint: '#ffd166', glyph: 'multishot',forceSplit: 'mini', exclude: ['mini', 'splitter'] }, // killEnemy: spawns minis
+};
+export const AFFIX_KEYS = Object.keys(AFFIXES);

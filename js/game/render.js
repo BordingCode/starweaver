@@ -1,7 +1,7 @@
 import { WORLD_W, WORLD_H } from '../engine/canvas.js';
 import { TAU } from '../engine/vec.js';
 import { FX, drawFX } from '../engine/fx.js';
-import { SPELLS } from './content.js';
+import { SPELLS, AFFIXES } from './content.js';
 
 // Parallax starfield + nebula (built once; render-time randomness is fine).
 const LAYERS = [
@@ -226,6 +226,23 @@ function drawEnemies(ctx, w) {
     if (e.frozen > 0) { ctx.globalAlpha = 0.4; ctx.fillStyle = '#aef0ff'; drawEnemyShape(ctx, e); ctx.globalAlpha = 1; }
     // shield bracket
     if (e.shield) { ctx.strokeStyle = '#5dffb0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, -e.r - 3, e.r * 0.8, Math.PI * 0.15, Math.PI * 0.85, true); ctx.stroke(); }
+    // champion affix rings — one tinted halo+ring per affix so threats read at a glance
+    if (e.affixes && e.affixes.length) {
+      const spin = FX.reducedMotion ? 0 : performance.now() / 600;
+      for (let i = 0; i < e.affixes.length; i++) {
+        const a = AFFIXES[e.affixes[i]]; if (!a) continue;
+        const rr = e.r + 5 + i * 4.5;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.22; ctx.fillStyle = a.tint;
+        ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.fill();
+        ctx.restore();
+        ctx.strokeStyle = a.tint; ctx.lineWidth = 1.8; ctx.globalAlpha = 0.9;
+        ctx.setLineDash([rr * 0.5, rr * 0.32]); ctx.lineDashOffset = spin * (i % 2 ? -14 : 14);
+        ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.stroke();
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      }
+    }
     ctx.restore();
     // hp pip for tanky enemies
     if (e.maxHp > 8 && e.hp < e.maxHp) {
