@@ -177,7 +177,7 @@ export class World {
       e.spawnAnim = 1.2; e.phase = 0; e.lastPhase = 0; e.atkT = 2.4; e.atkMode = 0; e.spin = 0; e.dir = 1; e.shield = 0; e.tele = 0; e.pullT = 0;
       // set-piece state: scripted phase transition, armor window, low-HP enrage,
       // post-attack vulnerable window, chip-damage bar, multi-stage death
-      e.transT = 0; e.invuln = 0; e.enrage = 0; e.vuln = 0; e.deathT = 0; e.hpShown = hp; e.mainCol = b.color; e.echoT = 0;
+      e.transT = 0; e.invuln = 0; e.enrage = 0; e.vuln = 0; e.deathT = 0; e.hpShown = hp; e.mainCol = b.color; e.echoT = 0; e.landed = false;
     });
   }
 
@@ -623,7 +623,17 @@ export class World {
       return;
     }
 
-    if (e.spawnAnim > 0) { e.y += (e.baseY - e.y) * Math.min(1, dt * 2); return; }
+    if (e.spawnAnim > 0) {
+      e.y += (e.baseY - e.y) * Math.min(1, dt * 2);
+      if (!e.landed && e.spawnAnim < 0.35) { // arrival flourish as it settles in
+        e.landed = true;
+        shockwave(e.x, e.y, { color: main, max: 250, dur: 0.7, width: 6 });
+        burst(e.x, e.y, 24, { color: main, speed: 240, life: 0.7, r: 3 });
+        screenFlash(0.25, e.bossId === 'warden' ? '107,107,255' : e.bossId === 'chrono' ? '255,209,77' : '255,77,157');
+        addTrauma(0.4);
+      }
+      return;
+    }
     const warden = e.bossId === 'warden';
     // movement: Queen sways briskly; Grave Warden hovers heavily
     if (warden) {
