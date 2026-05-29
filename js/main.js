@@ -5,7 +5,7 @@ import { Input } from './engine/input.js';
 import { FX, updateFX, clearFX } from './engine/fx.js';
 import { World } from './game/world.js';
 import { drawWorld } from './game/render.js';
-import { UPGRADES, SPELLS, RARITY_WEIGHT, PACTS } from './game/content.js';
+import { UPGRADES, SPELLS, RARITY_WEIGHT, PACTS, ENEMIES, AFFIXES } from './game/content.js';
 import { initAudio, resumeAudio, setMuted, isMuted, sfx, startMusic, stopMusic, setMusicIntensity, setSfx } from './audio.js';
 import { iconSVG } from './icons.js';
 import { SHOP, costOf, dustEarned, applyMeta } from './game/meta.js';
@@ -216,9 +216,11 @@ function showTitle() {
   const row = el('div', 'row');
   const hangar = el('button', 'btn ghost', 'Hangar');
   hangar.addEventListener('click', () => { resumeAudio(); showHangar(); });
+  const guideBtn = el('button', 'btn ghost', 'Field Guide');
+  guideBtn.addEventListener('click', () => { resumeAudio(); showGuide(); });
   const setBtn = el('button', 'btn ghost', 'Settings');
   setBtn.addEventListener('click', () => { resumeAudio(); showSettings(); });
-  row.append(hangar, setBtn);
+  row.append(hangar, guideBtn, setBtn);
   s.append(row);
   if (Game.meta.best > 0) s.append(el('div', 'stat-line', `Best run: ${Game.meta.best}`));
   s.append(el('div', 'hint', 'Drag to fly — your ship floats above your finger. You only <b>shoot while still</b>, so dodge, then stand and unload. Tap the orbs to <b>Blink</b> and cast arcana. Clear a wave, pick a power, repeat.'));
@@ -249,6 +251,63 @@ function loadoutPicker() {
   wrap.append(opts, desc);
   select(Game.meta.loadout);
   return wrap;
+}
+
+// Field Guide / codex — teaches the (now deep) cast of enemies, champions, arcana & pacts.
+const GUIDE_ENEMY_TIPS = {
+  grunt: 'Basic drifter. The bones of the swarm.',
+  drone: 'Fires quick double shots.',
+  weaver: 'Snakes side to side — hard to pin down.',
+  bomber: 'Slow tank that lobs a 3-way spread.',
+  shielded: 'Bulwark — shrugs off half your bullet damage.',
+  diver: 'Lancer — locks on and dives. Kill it or sidestep.',
+  splitter: 'Spore — bursts into two Sporelings on death.',
+  mini: 'Sporeling — a fast little fragment.',
+  warden: 'Anchors high, then fires where you stood. Don\'t camp.',
+  seeder: 'Drops proximity mines that bloom into rings.',
+  pulsar: 'Charges on a beat, then a slow ring — fire in the gap after.',
+  strobe: 'Fast strafer raking spread shots; keeps you moving.',
+};
+const GUIDE_AFFIX_TIPS = {
+  armored: 'Takes 45% less damage.',
+  swift: 'Moves and fires noticeably faster.',
+  volatile: 'Bursts into a ring of bullets on death.',
+  vampiric: 'Slowly heals its own wounds.',
+  warding: 'Has a chance to nullify your shots.',
+  splitting: 'Spawns Sporelings when it dies.',
+};
+function guideRow(swatchColor, name, tip, shape) {
+  const r = el('div', 'guide-row');
+  const sw = el('span', 'guide-swatch' + (shape ? ' ' + shape : ''));
+  sw.style.setProperty('--sw', swatchColor);
+  r.append(sw, (() => { const b = el('div', 'guide-text'); b.append(el('div', 'guide-name', name), el('div', 'guide-tip', tip)); return b; })());
+  return r;
+}
+function showGuide() {
+  Game.screen = 'guide';
+  clearApp();
+  const s = el('div', 'screen guide');
+  s.append(el('div', 'pick-title', 'Field Guide'));
+  const scroll = el('div', 'guide-scroll');
+  // Enemies
+  scroll.append(el('div', 'guide-head', 'Swarm'));
+  Object.keys(GUIDE_ENEMY_TIPS).forEach((id) => { const e = ENEMIES[id]; if (e) scroll.append(guideRow(e.color, e.name, GUIDE_ENEMY_TIPS[id], 'dot')); });
+  // Champions / affixes
+  scroll.append(el('div', 'guide-head', 'Champions — ringed elites'));
+  scroll.append(el('div', 'guide-note', 'Elite waves and deep runs upgrade foes with these traits. Deadlier, but they drop more.'));
+  Object.keys(AFFIXES).forEach((id) => { const a = AFFIXES[id]; scroll.append(guideRow(a.tint, a.name, GUIDE_AFFIX_TIPS[id] || '', 'ring')); });
+  // Arcana
+  scroll.append(el('div', 'guide-head', 'Arcana'));
+  ['dash', 'nova', 'chain', 'storm'].forEach((id) => { const sp = SPELLS[id]; if (sp) { const r = el('div', 'guide-row'); r.append(el('span', 'guide-swatch ic-wrap', iconSVG(id) || ''), (() => { const b = el('div', 'guide-text'); b.append(el('div', 'guide-name', sp.name), el('div', 'guide-tip', sp.desc)); return b; })()); scroll.append(r); } });
+  // Pacts
+  scroll.append(el('div', 'guide-head', 'Pacts — the Elite gamble'));
+  PACTS.forEach((p) => { const r = el('div', 'guide-row'); r.append(el('span', 'guide-swatch ic-wrap', iconSVG(p.icon) || ''), (() => { const b = el('div', 'guide-text'); b.append(el('div', 'guide-name', p.name), el('div', 'guide-tip', `<span class="g-boon">${p.boon}</span> <span class="g-curse">${p.curse}</span>`)); return b; })()); scroll.append(r); });
+  s.append(scroll);
+  const back = el('button', 'btn', '◂ Back');
+  back.addEventListener('click', () => showTitle());
+  s.append(back);
+  app.append(s);
+  syncDebug();
 }
 
 function showHangar() {
