@@ -6,7 +6,7 @@ import { FX, updateFX, clearFX } from './engine/fx.js';
 import { World } from './game/world.js';
 import { drawWorld } from './game/render.js';
 import { UPGRADES, SPELLS, RARITY_WEIGHT, PACTS, ENEMIES, AFFIXES } from './game/content.js';
-import { initAudio, resumeAudio, setMuted, isMuted, sfx, startMusic, stopMusic, setMusicIntensity, setSfx } from './audio.js';
+import { initAudio, resumeAudio, setMuted, isMuted, sfx, startMusic, stopMusic, setMusicIntensity, setSfx, setBossMusic } from './audio.js';
 import { iconSVG } from './icons.js';
 import { SHOP, costOf, dustEarned, applyMeta } from './game/meta.js';
 
@@ -18,8 +18,16 @@ window.addEventListener('resize', () => view.resize());
 
 FX.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+let bossMusicOn = false;
 const loop = new GameLoop({
-  update: (dt) => { if (Game.world && Game.screen === 'playing') { Game.world.update(dt, input); syncDebug(); } updateFX(dt); },
+  update: (dt) => {
+    if (Game.world && Game.screen === 'playing') {
+      Game.world.update(dt, input); syncDebug();
+      const boss = !!Game.world.boss;
+      if (boss !== bossMusicOn) { bossMusicOn = boss; setBossMusic(boss); } // adaptive boss layer
+    }
+    updateFX(dt);
+  },
   render: (alpha) => { view.begin(); drawWorld(view.ctx, Game.world, view, alpha); if (Game.world && Game.screen === 'playing') drawHUD(); },
 });
 
@@ -123,6 +131,7 @@ function toast(text) { if (!toastEl) return; toastEl.textContent = text; toastEl
 // ---------------- Run flow ----------------
 function startRun() {
   resumeAudio(); if (Game.meta.settings.music !== false) startMusic();
+  bossMusicOn = false; setBossMusic(false);
   clearFX();
   Game.world = new World();
   Game.world.player.spells = ['dash', Game.meta.loadout || 'nova'];

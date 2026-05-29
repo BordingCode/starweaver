@@ -145,12 +145,28 @@ export function startMusic() {
   };
   beat();
 }
+// Adaptive layer: a low heartbeat pulse that runs only during boss fights (tension).
+let bossTimer = null;
+export function setBossMusic(on) {
+  if (!ctx) return;
+  if (on && !bossTimer) {
+    const beat = () => {
+      if (!ctx) return;
+      tone(60, 0.5, { type: 'sine', gain: 0.13, attack: 0.01, dest: musicGain });
+      tone(92, 0.3, { type: 'triangle', gain: 0.05, delay: 0.2, dest: musicGain });
+      bossTimer = setTimeout(beat, 720);
+    };
+    beat();
+  } else if (!on && bossTimer) { clearTimeout(bossTimer); bossTimer = null; }
+}
+
 export function setMusicIntensity(x) {
   musicTarget = 0.4 + x * 0.4;
   if (musicGain && ctx) musicGain.gain.setTargetAtTime(musicTarget, ctx.currentTime, 0.8);
 }
 export function stopMusic() {
   if (musicTimer) { clearTimeout(musicTimer); musicTimer = null; }
+  if (bossTimer) { clearTimeout(bossTimer); bossTimer = null; }
   musicTarget = 0;
   if (musicGain && ctx) musicGain.gain.setTargetAtTime(0, ctx.currentTime, 0.6);
 }
