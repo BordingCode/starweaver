@@ -1,0 +1,129 @@
+// Procedural Web Audio: no files. Oscillators + filtered noise with envelopes.
+// Unlocked on first user gesture. A soft pulsing pad provides music.
+let ctx = null;
+let master = null;
+let musicGain = null;
+let muted = false;
+let musicTimer = null;
+
+export function initAudio() {
+  if (ctx) return;
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    master = ctx.createGain();
+    master.gain.value = muted ? 0 : 0.6;
+    master.connect(ctx.destination);
+    musicGain = ctx.createGain();
+    musicGain.gain.value = 0.0;
+    musicGain.connect(master);
+  } catch (e) { ctx = null; }
+}
+
+export function resumeAudio() {
+  if (!ctx) initAudio();
+  if (ctx && ctx.state === 'suspended') ctx.resume();
+}
+
+export function setMuted(m) {
+  muted = m;
+  if (master) master.gain.setTargetAtTime(m ? 0 : 0.6, ctx.currentTime, 0.05);
+  return muted;
+}
+export function isMuted() { return muted; }
+
+function noiseBuf(dur) {
+  const len = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
+}
+
+function tone(freq, dur, { type = 'sine', gain = 0.3, slideTo = null, delay = 0, attack = 0.005, dest = null } = {}) {
+  if (!ctx) return;
+  const t0 = ctx.currentTime + delay;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t0 + dur);
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(gain, t0 + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(dest || master);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+
+function noise(dur, { gain = 0.3, type = 'highpass', freq = 1200, q = 0.7, delay = 0 } = {}) {
+  if (!ctx) return;
+  const t0 = ctx.currentTime + delay;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf(dur);
+  const f = ctx.createBiquadFilter();
+  f.type = type; f.frequency.value = freq; f.Q.value = q;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(f); f.connect(g); g.connect(master);
+  src.start(t0); src.stop(t0 + dur + 0.02);
+}
+
+// ---- SFX ----
+let lastShot = 0;
+export const sfx = {
+  shoot() {
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    if (now - lastShot < 0.04) return; lastShot = now;
+    tone(880, 0.08, { type: 'square', gain: 0.06, slideTo: 1400 });
+    tone(440, 0.06, { type: 'triangle', gain: 0.04, slideTo: 700 });
+  },
+  hit() { tone(300, 0.05, { type: 'square', gain: 0.05, slideTo: 180 }); },
+  explode(big = false) {
+    noise(big ? 0.5 : 0.25, { gain: big ? 0.5 : 0.28, type: 'lowpass', freq: big ? 900 : 1600, q: 0.6 });
+    tone(big ? 90 : 160, big ? 0.5 : 0.22, { type: 'sine', gain: big ? 0.4 : 0.2, slideTo: big ? 30 : 60 });
+  },
+  pickup() {
+    tone(660, 0.1, { type: 'sine', gain: 0.18, slideTo: 990 });
+    tone(990, 0.12, { type: 'sine', gain: 0.12, delay: 0.06, slideTo: 1320 });
+  },
+  dash() { noise(0.18, { gain: 0.2, type: 'bandpass', freq: 2200, q: 2 }); tone(520, 0.16, { type: 'sawtooth', gain: 0.08, slideTo: 1200 }); },
+  hurt() { tone(220, 0.22, { type: 'sawtooth', gain: 0.22, slideTo: 70 }); noise(0.2, { gain: 0.15, type: 'lowpass', freq: 700 }); },
+  spell(kind = 0) {
+    const base = [330, 392, 261][kind % 3];
+    tone(base, 0.3, { type: 'sawtooth', gain: 0.14, slideTo: base * 3 });
+    tone(base * 2, 0.4, { type: 'sine', gain: 0.1, delay: 0.04 });
+    noise(0.3, { gain: 0.12, type: 'bandpass', freq: 1800, q: 1.5 });
+  },
+  levelup() {
+    [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.4, { type: 'triangle', gain: 0.16, delay: i * 0.08 }));
+  },
+  bossWarn() { tone(110, 0.8, { type: 'sawtooth', gain: 0.25, slideTo: 70 }); tone(55, 1.0, { type: 'square', gain: 0.18 }); },
+  win() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, 0.6, { type: 'sine', gain: 0.18, delay: i * 0.12 })); },
+  lose() { [330, 294, 262, 196].forEach((f, i) => tone(f, 0.6, { type: 'sawtooth', gain: 0.16, delay: i * 0.16, slideTo: f * 0.6 })); },
+};
+
+// ---- Music: slow evolving pad, two interval voices ----
+const scale = [196, 220, 261.63, 294, 330, 392];
+let musicStep = 0;
+export function startMusic() {
+  if (!ctx || musicTimer) return;
+  musicGain.gain.setTargetAtTime(0.5, ctx.currentTime, 1.5);
+  const beat = () => {
+    if (!ctx) return;
+    const root = scale[musicStep % scale.length];
+    tone(root, 2.4, { type: 'sine', gain: 0.06, attack: 0.6, dest: musicGain });
+    tone(root * 1.5, 2.4, { type: 'triangle', gain: 0.035, attack: 0.8, dest: musicGain });
+    if (musicStep % 2 === 0) tone(root * 2, 1.8, { type: 'sine', gain: 0.025, attack: 0.4, dest: musicGain });
+    musicStep++;
+    musicTimer = setTimeout(beat, 1700);
+  };
+  beat();
+}
+export function setMusicIntensity(x) {
+  if (musicGain && ctx) musicGain.gain.setTargetAtTime(0.4 + x * 0.4, ctx.currentTime, 0.8);
+}
+export function stopMusic() {
+  if (musicTimer) { clearTimeout(musicTimer); musicTimer = null; }
+  if (musicGain && ctx) musicGain.gain.setTargetAtTime(0, ctx.currentTime, 0.6);
+}

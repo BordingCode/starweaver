@@ -1,0 +1,14 @@
+{
+  "name": "Starweaver",
+  "short_name": "Starweaver",
+  "description": "A roguelite bullet-hell spell-shooter. Dodge, weave arcana, break the swarm.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#05030f",
+  "theme_color": "#05030f",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
