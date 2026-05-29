@@ -486,6 +486,7 @@ function applySettings() {
   const st = Game.meta.settings;
   setSfx(st.sfx !== false);
   FX.reducedMotion = st.reduceMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.body.classList.toggle('reduce-motion', FX.reducedMotion); // gate CSS animations too
   window.__haptics = st.haptics !== false;
 }
 

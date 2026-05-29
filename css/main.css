@@ -266,5 +266,12 @@ html, body {
 .pact-curse .ic { color: var(--red); }
 
 @media (prefers-reduced-motion: reduce) {
-  .card, .splash-mark, .toast.show { animation: none !important; }
+  .card, .splash-mark, .toast.show, .boss-banner.show .bb-name, .boss-banner.show .bb-warn, .boss-banner.out { animation: none !important; }
 }
+/* in-game "Reduce motion" toggle (set on <body> by applySettings) mirrors the OS setting */
+body.reduce-motion .card,
+body.reduce-motion .splash-mark,
+body.reduce-motion .toast.show,
+body.reduce-motion .boss-banner.show .bb-name,
+body.reduce-motion .boss-banner.show .bb-warn,
+body.reduce-motion .boss-banner.out { animation: none !important; }
