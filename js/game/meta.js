@@ -28,7 +28,7 @@ export function costOf(item, level) {
 
 // dust earned from a finished run — a deliberately lean faucet (it's meant to be a grind)
 export function dustEarned(score, wave, won, upg) {
-  const base = Math.floor(score / 14) + wave * 8 + (won ? 120 : 0);
+  const base = Math.floor(score / 14) + wave * 8 + (won ? 200 : 0);
   const mult = 1 + 0.15 * (upg.dust || 0);
   return Math.max(1, Math.round(base * mult));
 }

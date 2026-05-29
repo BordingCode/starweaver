@@ -111,7 +111,7 @@ export class World {
   spawnEnemy(type, x, y, baseX, baseY, mode, affixes) {
     const def = ENEMIES[type];
     if (!def) return; // safety: ignore unknown types rather than crash
-    const hpScale = 1 + this.wave * 0.16;
+    const hpScale = (1 + this.wave * 0.22) * this.sectorMul();
     this.enemies.spawn((e) => {
       e.type = type; e.def = def;
       e.x = x; e.y = y - 40; e.baseX = baseX; e.baseY = baseY;
@@ -167,7 +167,7 @@ export class World {
       chrono: { name: 'THE CHRONOMETH',   color: '#ffd14d', r: 62, hp: 1000 },
     };
     const b = BOSSES[bossId] || BOSSES.queen;
-    const hp = b.hp + this.wave * 30;
+    const hp = Math.round(b.hp * 1.25) + this.wave * 55; // bosses are real checks, not piñatas
     this.boss = this.enemies.spawn((e) => {
       e.type = 'boss'; e.bossId = bossId;
       e.def = { name: b.name, color: b.color, contact: 22 };
@@ -181,8 +181,14 @@ export class World {
     });
   }
 
-  // escalating XP cost: 50, 66, 87, 115, 152, 200... so power growth decelerates
-  xpForLevel(L) { return Math.round(50 * Math.pow(1.32, L - 1)); }
+  // Difficulty steps UP per sector — crossing a boss enters a harder game.
+  sectorMul() { const w = this.wave; return w >= 16 ? 1.70 : w >= 8 ? 1.30 : 1.00; }
+  // Enemy bullet damage SCALES (it used to be a flat ~6 forever — the #1 reason the
+  // game was winnable first-try). Grows per-wave and steps up per sector.
+  ebDmg(base = 5) { return Math.round(base * (1 + this.wave * 0.10) * this.sectorMul()); }
+
+  // escalating XP cost, retuned steeper so player power doesn't outrun the threat
+  xpForLevel(L) { return Math.round(60 * Math.pow(1.42, L - 1)); }
   grantXP(amount) {
     this.xp += amount;
     while (this.xp >= this.xpNext) {
@@ -283,7 +289,7 @@ export class World {
     // relative virtual joystick: drag direction = move direction, throttled by drag length.
     // Standing still (throttle in the deadzone, or finger lifted) re-engages the guns.
     const DEADZONE = 0.18;
-    const MAX_SPEED = 430 * p.moveSpeed;   // world units/sec at full throttle — the master difficulty dial
+    const MAX_SPEED = 390 * p.moveSpeed;   // world units/sec at full throttle — the master difficulty dial
     let moveMag = 0;
     const j = input.joystick();
     if (input.active && j.mag > DEADZONE) {
@@ -525,7 +531,7 @@ export class World {
       }
 
       // reaching the bottom hurts the player and removes the enemy (anchors never do)
-      if (!e.def.anchor && e.y > WORLD_H - 70) { this.hurtPlayer(8); this.killEnemy(e, true); return; }
+      if (!e.def.anchor && e.y > WORLD_H - 70) { this.hurtPlayer(Math.round(8 * this.sectorMul())); this.killEnemy(e, true); return; }
 
       // shooting
       if (e.def.fireEvery && e.spawnAnim <= 0) {
@@ -550,7 +556,7 @@ export class World {
 
       // contact with player
       if (p.iframes <= 0 && p.invuln <= 0 && hit(e.x, e.y, e.r, p.x, p.y, p.r)) {
-        this.hurtPlayer(e.contact);
+        this.hurtPlayer(Math.round(e.contact * this.sectorMul()));
         if (e.mode === 'dive') this.killEnemy(e, true);
       }
     });
@@ -560,7 +566,7 @@ export class World {
     const p = this.player;
     const shoot = e.def.shoot;
     const a = angle(e.x, e.y, p.x, p.y);
-    const speed = 195 + this.wave * 7;
+    const speed = (180 + this.wave * 8) * (0.9 + 0.1 * (this.wave >= 16 ? 3 : this.wave >= 8 ? 2 : 1));
     const fire = (ang, sp = speed) => this.spawnEBullet(e.x, e.y + e.r, ang, sp, e.def.color);
     if (shoot === 'aimed') fire(a);
     else if (shoot === 'double') { fire(a - 0.12); fire(a + 0.12); }
@@ -590,7 +596,7 @@ export class World {
   // Seeder: drop a slow proximity orb that pops into a ring
   spawnMine(e) {
     this.eBullets.spawn((b) => {
-      b.x = e.x; b.y = e.y + e.r; b.vx = 0; b.vy = 62; b.r = 9; b.dmg = 7;
+      b.x = e.x; b.y = e.y + e.r; b.vx = 0; b.vy = 62; b.r = 9; b.dmg = this.ebDmg(7);
       b.color = '#9bff6b'; b.life = 6; b.mine = true; b.fuse = 4.5; b.holdT = 0;
     });
   }
@@ -598,7 +604,7 @@ export class World {
   spawnEBullet(x, y, a, speed, color, opts) {
     this.eBullets.spawn((b) => {
       b.x = x; b.y = y; b.vx = Math.cos(a) * speed; b.vy = Math.sin(a) * speed;
-      b.r = (opts && opts.r) || 6.5; b.dmg = (opts && opts.dmg) || 6; b.color = color || '#ff5470'; b.life = (opts && opts.life) || 5;
+      b.r = (opts && opts.r) || 6.5; b.dmg = this.ebDmg((opts && opts.dmg) || 5); b.color = color || '#ff5470'; b.life = (opts && opts.life) || 5;
       b.mine = false; b.fuse = 0; b.holdT = 0; // clear pooled mine/hold state
     });
   }
@@ -690,7 +696,7 @@ export class World {
       const base = warden ? 2.6 : chrono ? 2.4 : 2.2;
       e.atkT = base - e.phase * (warden ? 0.4 : 0.5);
     }
-    if (p.iframes <= 0 && p.invuln <= 0 && hit(e.x, e.y, e.r, p.x, p.y, p.r)) this.hurtPlayer(e.contact);
+    if (p.iframes <= 0 && p.invuln <= 0 && hit(e.x, e.y, e.r, p.x, p.y, p.r)) this.hurtPlayer(Math.round(e.contact * this.sectorMul()));
   }
 
   bossAttack(e) {
@@ -756,7 +762,7 @@ export class World {
         const ang = i * (TAU / 4) + 0.0;
         this.eBullets.spawn((b) => {
           b.x = e.x; b.y = e.y; b.vx = Math.cos(ang) * 150; b.vy = Math.sin(ang) * 150;
-          b.r = 9; b.dmg = 8; b.color = IND; b.life = 6; b.mine = false; b.fuse = 0; b.holdT = 0.5;
+          b.r = 9; b.dmg = this.ebDmg(8); b.color = IND; b.life = 6; b.mine = false; b.fuse = 0; b.holdT = 0.5;
         });
       }
     }
@@ -949,7 +955,7 @@ export class World {
     }
     this.mult = newMult;
     this.score += Math.round(e.score * this.mult);
-    this.grantXP(e.score); // XP = raw score (champions already worth more) → escalating level-ups
+    this.grantXP(e.score * 0.7); // XP from kills (throttled so power trails the threat curve)
     // lifesteal
     if (p.lifesteal > 0) { p.hp = Math.min(p.maxHp, p.hp + p.lifesteal); }
     // fx
