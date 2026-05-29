@@ -917,7 +917,8 @@ export class World {
     if (e.hp > 0 && !e.isBoss && p.execute > 0 && e.hp <= e.maxHp * p.execute) e.hp = 0;
     if (e.hp <= 0) {
       if (e.isBoss && e.deathT <= 0) { // start the multi-stage death; killEnemy fires the finale
-        e.hp = 0; e.deathT = 1.3; e.invuln = 99; this.eBullets.clear(); sfx.phase();
+        e.hp = 0; e.deathT = 1.3; e.invuln = 99; this.eBullets.clear();
+        hitStop(0.22); addTrauma(0.7); screenFlash(0.5, '255,255,255'); sfx.phase(); // the final blow LANDS
         return;
       }
       this.killEnemy(e);

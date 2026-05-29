@@ -149,17 +149,18 @@ export function startMusic() {
 }
 // Adaptive layer: a low heartbeat pulse that runs only during boss fights (tension).
 let bossTimer = null;
-export function setBossMusic(on) {
+export function setBossMusic(on, fast = false) {
   if (!ctx) return;
-  if (on && !bossTimer) {
-    const beat = () => {
-      if (!ctx) return;
-      tone(60, 0.5, { type: 'sine', gain: 0.13, attack: 0.01, dest: musicGain });
-      tone(92, 0.3, { type: 'triangle', gain: 0.05, delay: 0.2, dest: musicGain });
-      bossTimer = setTimeout(beat, 720);
-    };
-    beat();
-  } else if (!on && bossTimer) { clearTimeout(bossTimer); bossTimer = null; }
+  if (bossTimer) { clearTimeout(bossTimer); bossTimer = null; }
+  if (!on) return;
+  const beat = () => {
+    if (!ctx) return;
+    tone(60, 0.5, { type: 'sine', gain: 0.13, attack: 0.01, dest: musicGain });
+    tone(92, 0.3, { type: 'triangle', gain: 0.05, delay: 0.2, dest: musicGain });
+    if (fast) tone(150, 0.18, { type: 'sawtooth', gain: 0.045, delay: 0.1, dest: musicGain }); // enrage tension
+    bossTimer = setTimeout(beat, fast ? 470 : 720);
+  };
+  beat();
 }
 
 export function setMusicIntensity(x) {

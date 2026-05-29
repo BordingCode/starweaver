@@ -18,13 +18,14 @@ window.addEventListener('resize', () => view.resize());
 
 FX.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-let bossMusicOn = false;
+let bossMusicOn = false, bossMusicFast = false;
 const loop = new GameLoop({
   update: (dt) => {
     if (Game.world && Game.screen === 'playing') {
       Game.world.update(dt, input); syncDebug();
-      const boss = !!Game.world.boss;
-      if (boss !== bossMusicOn) { bossMusicOn = boss; setBossMusic(boss); } // adaptive boss layer
+      const b = Game.world.boss;
+      const boss = !!b, fast = boss && b.phase >= 2 && b.deathT <= 0; // quicken the heartbeat at enrage
+      if (boss !== bossMusicOn || fast !== bossMusicFast) { bossMusicOn = boss; bossMusicFast = fast; setBossMusic(boss, fast); }
     }
     updateFX(dt);
   },
@@ -158,7 +159,7 @@ function toast(text) { if (!toastEl) return; toastEl.textContent = text; toastEl
 // ---------------- Run flow ----------------
 function startRun() {
   resumeAudio(); if (Game.meta.settings.music !== false) startMusic();
-  bossMusicOn = false; setBossMusic(false);
+  bossMusicOn = false; bossMusicFast = false; setBossMusic(false);
   clearFX();
   Game.world = new World();
   Game.world.player.spells = ['dash', Game.meta.loadout || 'nova'];
