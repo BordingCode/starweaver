@@ -240,9 +240,10 @@ function drawEnemies(ctx, w) {
     if (e.isBoss) return;
     const st = e.spawnAnim > 0 ? 1 - e.spawnAnim / 0.35 : 1;
     const s = e.spawnAnim > 0 ? (FX.reducedMotion ? st : easeOutBack(st)) : 1;
+    const punch = e.flash > 0 ? 1 + Math.min(e.flash, 1) * 0.14 : 1; // Vlambeer hit-punch (scale pop)
     ctx.save();
     ctx.translate(e.x, e.y);
-    ctx.scale(s, s);
+    ctx.scale(s * punch, s * punch);
     const col = e.flash > 0 ? '#ffffff' : e.def.color;
     // cheap additive halo instead of shadowBlur
     ctx.save();
@@ -340,9 +341,10 @@ function drawBoss(ctx, w) {
   const main = warden ? '#6b6bff' : chrono ? '#ffd14d' : '#ff4d9d';
   const haloRGB = warden ? '107,107,255' : chrono ? '255,209,77' : '255,77,157';
   const s = e.spawnAnim > 0 ? 0.6 + 0.4 * (1 - e.spawnAnim / 1.2) : 1;
+  const punch = e.flash > 0 ? 1 + Math.min(e.flash, 1) * 0.05 : 1; // subtle hit-punch (boss is big)
   ctx.save();
   ctx.translate(e.x, e.y);
-  ctx.scale(s, s);
+  ctx.scale(s * punch, s * punch);
   // outer halo
   ctx.globalCompositeOperation = 'lighter';
   const g = ctx.createRadialGradient(0, 0, 10, 0, 0, e.r * 1.6);
