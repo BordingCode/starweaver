@@ -168,6 +168,7 @@ function startRun() {
   Game.world.rerolls = grants.rerolls; Game.world.maxRerolls = grants.rerolls;
   Game.world.revives = grants.revives; Game.world.luck = grants.luck;
   Game.world.xp = grants.xpStart || 0; // Veteran's Cache head-start toward leveling
+  Game.world.ascension = Game.meta.ascension || 0; // post-win difficulty tier
   Game.world.onWaveClear = onWaveClear;
   Game.world.onGameOver = onGameOver;
   Game.world.startWave(0);
@@ -238,7 +239,13 @@ function onGameOver(won) {
   stopMusic();
   const w = Game.world;
   if (w.score > Game.meta.best) Game.meta.best = w.score;
-  if (won) Game.meta.wins++;
+  if (won) {
+    Game.meta.wins++;
+    // beating your current tier unlocks the next Starbound Tier (cap 8)
+    if (Game.meta.ascension >= Game.meta.ascensionMax && Game.meta.ascensionMax < 8) {
+      Game.meta.ascensionMax++; Game.meta.ascension = Game.meta.ascensionMax; w.tierUnlocked = Game.meta.ascensionMax;
+    }
+  }
   const earned = Math.round(dustEarned(w.score, w.wave, won, Game.meta.upg || {}) * (w.dustMult || 1));
   Game.meta.dust = (Game.meta.dust || 0) + earned;
   w.dustEarned = earned;
@@ -260,6 +267,7 @@ function showTitle() {
   );
   s.append(el('div', 'dust-line', `${iconSVG('spellpow')}<span>${Game.meta.dust || 0} Stardust</span>`));
   s.append(loadoutPicker());
+  if (Game.meta.ascensionMax > 0) s.append(tierPicker());
   const play = el('button', 'btn', '▶ Play');
   play.addEventListener('click', () => { resumeAudio(); startRun(); });
   s.append(play);
@@ -279,6 +287,23 @@ function showTitle() {
 }
 
 // Starting-arcana picker: choose which secondary spell you begin every run with.
+// Starbound Tier selector — appears once you've won; raises global difficulty for depth/replay.
+function tierPicker() {
+  const wrap = el('div', 'arcana-pick');
+  wrap.append(el('div', 'arcana-label', 'Starbound Tier'));
+  const row = el('div', 'tier-row');
+  const dec = el('button', 'tier-step', '◂');
+  const lbl = el('div', 'tier-val', '');
+  const inc = el('button', 'tier-step', '▸');
+  const upd = () => { lbl.textContent = 'TIER ' + Game.meta.ascension; dec.disabled = Game.meta.ascension <= 0; inc.disabled = Game.meta.ascension >= Game.meta.ascensionMax; };
+  dec.addEventListener('click', () => { resumeAudio(); sfx.pickup(); Game.meta.ascension = Math.max(0, Game.meta.ascension - 1); saveMeta(); upd(); });
+  inc.addEventListener('click', () => { resumeAudio(); sfx.pickup(); Game.meta.ascension = Math.min(Game.meta.ascensionMax, Game.meta.ascension + 1); saveMeta(); upd(); });
+  row.append(dec, lbl, inc); wrap.append(row);
+  wrap.append(el('div', 'arcana-desc', `Higher tiers = a tougher swarm & bosses (max ${Game.meta.ascensionMax} unlocked). Win to unlock the next.`));
+  upd();
+  return wrap;
+}
+
 function loadoutPicker() {
   const wrap = el('div', 'arcana-pick');
   wrap.append(el('div', 'arcana-label', 'Starting Arcana'));
@@ -556,6 +581,7 @@ function showGameOver(won) {
   const s = el('div', 'screen');
   s.append(el('div', `dead-title ${won ? 'win' : 'lose'}`, won ? 'SWARM BROKEN' : 'SHIP LOST'));
   s.append(el('div', 'stat-line', won ? 'You unwound the Chronometh and broke the Glare.' : `You fell on ${w.waves[w.wave] ? w.waves[w.wave].label : 'the swarm'}.`));
+  if (won && w.tierUnlocked) s.append(el('div', 'tier-unlock', `★ STARBOUND TIER ${w.tierUnlocked} UNLOCKED ★`));
   s.append(el('div', 'stat-big', String(w.score)));
   s.append(el('div', 'stat-line', `Best: ${Game.meta.best}`));
   s.append(el('div', 'dust-line earned', `${iconSVG('spellpow')}<span>+${w.dustEarned || 0} Stardust  ·  ${Game.meta.dust || 0} total</span>`));

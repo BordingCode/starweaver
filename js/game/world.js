@@ -23,6 +23,7 @@ export class World {
     this.combo = 0; this.comboT = 0; this.mult = 1;
     // XP leveling: kills grant XP; crossing an escalating threshold banks an upgrade pick
     this.xp = 0; this.level = 1; this.xpNext = 50; this.pendingPicks = 0;
+    this.ascension = 0; // post-win difficulty tier (set from meta at run start)
     this.state = 'fighting';   // fighting | cleared | dead | won
     this.over = false; this.won = false;
     this.spawnQueue = [];
@@ -167,7 +168,7 @@ export class World {
       chrono: { name: 'THE CHRONOMETH',   color: '#ffd14d', r: 62, hp: 1000 },
     };
     const b = BOSSES[bossId] || BOSSES.queen;
-    const hp = Math.round(b.hp * 1.25) + this.wave * 55; // bosses are real checks, not piñatas
+    const hp = Math.round(b.hp * 1.25 * (1 + this.ascension * 0.15)) + this.wave * 55; // real checks, scale with ascension
     this.boss = this.enemies.spawn((e) => {
       e.type = 'boss'; e.bossId = bossId;
       e.def = { name: b.name, color: b.color, contact: 22 };
@@ -182,9 +183,10 @@ export class World {
   }
 
   // Difficulty steps UP per sector — crossing a boss enters a harder game.
-  sectorMul() { const w = this.wave; return w >= 16 ? 1.70 : w >= 8 ? 1.30 : 1.00; }
+  // Ascension tiers (unlocked by winning) layer a global multiplier on top for long-term depth.
+  sectorMul() { const w = this.wave; const s = w >= 16 ? 1.70 : w >= 8 ? 1.30 : 1.00; return s * (1 + (this.ascension || 0) * 0.15); }
   // Enemy bullet damage SCALES (it used to be a flat ~6 forever — the #1 reason the
-  // game was winnable first-try). Grows per-wave and steps up per sector.
+  // game was winnable first-try). Grows per-wave and steps up per sector + ascension.
   ebDmg(base = 5) { return Math.round(base * (1 + this.wave * 0.10) * this.sectorMul()); }
 
   // escalating XP cost, retuned steeper so player power doesn't outrun the threat
