@@ -209,6 +209,15 @@ html, body {
 .chip.pact-chip { color: var(--magenta); box-shadow: inset 0 0 0 1px rgba(255,77,157,.45); }
 .chip.pact-chip .ic { color: var(--magenta); }
 
+/* ---------- Virtual joystick (relative control) ---------- */
+.joystick { position: fixed; z-index: 4; pointer-events: none; width: 0; height: 0; opacity: 0; transition: opacity .12s ease; }
+.joystick.on { opacity: 1; }
+.joy-ring { position: absolute; width: 132px; height: 132px; left: -66px; top: -66px; border-radius: 50%;
+  box-shadow: inset 0 0 0 2px rgba(174,246,255,.35), 0 0 24px rgba(52,245,255,.12); background: rgba(174,246,255,.05); }
+.joy-knob { position: absolute; width: 56px; height: 56px; left: -28px; top: -28px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, rgba(174,246,255,.55), rgba(52,245,255,.18));
+  box-shadow: inset 0 0 0 1.5px rgba(174,246,255,.7), 0 0 18px rgba(52,245,255,.4); }
+
 /* ---------- Boss intro banner ---------- */
 .boss-banner {
   position: fixed; left: 0; right: 0; top: 38%; z-index: 6; pointer-events: none;

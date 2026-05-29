@@ -45,7 +45,7 @@ function el(tag, cls, html) { const n = document.createElement(tag); if (cls) n.
 function clearApp() { app.replaceChildren(); }
 
 // ---------------- HUD ----------------
-let hud = null, hpFill = null, shFill = null, scoreEl = null, comboEl = null, waveEl = null, dock = null, spellBtns = [], muteBtn = null, pauseBtn = null, toastEl = null;
+let hud = null, hpFill = null, shFill = null, scoreEl = null, comboEl = null, waveEl = null, dock = null, spellBtns = [], muteBtn = null, pauseBtn = null, toastEl = null, joyEl = null;
 function buildHUD() {
   removeHUD();
   hud = el('div', 'hud');
@@ -65,6 +65,11 @@ function buildHUD() {
 
   toastEl = el('div', 'toast');
   document.body.append(toastEl);
+
+  // visible virtual joystick (anchor ring + knob) so the relative control reads as a controller
+  joyEl = el('div', 'joystick');
+  joyEl.append(el('div', 'joy-ring'), el('div', 'joy-knob'));
+  document.body.append(joyEl);
 
   muteBtn = el('button', 'mute-btn', iconSVG(isMuted() ? 'muted' : 'sound'));
   muteBtn.addEventListener('click', () => { const m = setMuted(!isMuted()); muteBtn.innerHTML = iconSVG(m ? 'muted' : 'sound'); Game.meta.muted = isMuted(); saveMeta(); });
@@ -86,7 +91,7 @@ function buildHUD() {
   });
   document.body.append(dock);
 }
-function removeHUD() { [hud, dock, muteBtn, pauseBtn, toastEl].forEach((n) => n && n.remove()); hud = dock = muteBtn = pauseBtn = toastEl = null; spellBtns = []; }
+function removeHUD() { [hud, dock, muteBtn, pauseBtn, toastEl, joyEl].forEach((n) => n && n.remove()); hud = dock = muteBtn = pauseBtn = toastEl = joyEl = null; spellBtns = []; }
 
 function pauseGame() {
   if (Game.screen !== 'playing') return;
@@ -121,6 +126,18 @@ function drawHUD() {
   else comboEl.classList.remove('on');
   const def = w.waves[w.wave];
   waveEl.textContent = def ? def.label : '';
+  // visible joystick: ring at the touch anchor, knob at the (clamped) drag offset
+  if (joyEl) {
+    if (input.active) {
+      joyEl.classList.add('on');
+      const ax = view.offX + input.ox * view.scale, ay = view.offY + input.oy * view.scale;
+      let dx = (input.x - input.ox) * view.scale, dy = (input.y - input.oy) * view.scale;
+      const maxR = 70 * view.scale, len = Math.hypot(dx, dy);
+      if (len > maxR) { dx = dx / len * maxR; dy = dy / len * maxR; }
+      joyEl.style.left = ax + 'px'; joyEl.style.top = ay + 'px';
+      joyEl.querySelector('.joy-knob').style.transform = `translate(${dx}px, ${dy}px)`;
+    } else joyEl.classList.remove('on');
+  }
   // spell cooldown rings
   p.spells.forEach((id, slot) => {
     const sdef = SPELLS[id];
