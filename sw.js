@@ -1,5 +1,5 @@
 // Starweaver service worker — network-first, cache fallback. Bump CACHE on change.
-const CACHE = 'starweaver-v21';
+const CACHE = 'starweaver-v22';
 const SHELL = [
   './',
   './index.html',

@@ -6,7 +6,18 @@ let musicGain = null;
 let muted = false;
 let musicTimer = null;
 let sfxOn = true;
+let musicTarget = 0;     // current music volume target, so ducking can restore it
 export function setSfx(b) { sfxOn = b; }
+
+// Sidechain duck: briefly dip the music so an important cue cuts through the mix,
+// then ramp back to wherever the music level currently sits (research-backed clarity).
+function duck(depth = 0.5, dur = 0.28) {
+  if (!ctx || !musicGain || musicTarget <= 0) return;
+  const now = ctx.currentTime;
+  musicGain.gain.cancelScheduledValues(now);
+  musicGain.gain.setTargetAtTime(musicTarget * (1 - depth), now, 0.02);
+  musicGain.gain.setTargetAtTime(musicTarget, now + dur, 0.18);
+}
 
 export function initAudio() {
   if (ctx) return;
@@ -78,11 +89,13 @@ export const sfx = {
     if (!ctx) return;
     const now = ctx.currentTime;
     if (now - lastShot < 0.04) return; lastShot = now;
-    tone(880, 0.08, { type: 'square', gain: 0.06, slideTo: 1400 });
-    tone(440, 0.06, { type: 'triangle', gain: 0.04, slideTo: 700 });
+    const v = 1 + (Math.random() - 0.5) * 0.06; // pitch-vary so rapid fire doesn't fatigue
+    tone(880 * v, 0.08, { type: 'square', gain: 0.06, slideTo: 1400 * v });
+    tone(440 * v, 0.06, { type: 'triangle', gain: 0.04, slideTo: 700 * v });
   },
-  hit() { tone(300, 0.05, { type: 'square', gain: 0.05, slideTo: 180 }); },
+  hit() { const v = 1 + (Math.random() - 0.5) * 0.12; tone(300 * v, 0.05, { type: 'square', gain: 0.05, slideTo: 180 * v }); },
   explode(big = false) {
+    if (big) duck(0.55, 0.5);
     noise(big ? 0.5 : 0.25, { gain: big ? 0.5 : 0.28, type: 'lowpass', freq: big ? 900 : 1600, q: 0.6 });
     tone(big ? 90 : 160, big ? 0.5 : 0.22, { type: 'sine', gain: big ? 0.4 : 0.2, slideTo: big ? 30 : 60 });
   },
@@ -91,7 +104,7 @@ export const sfx = {
     tone(990, 0.12, { type: 'sine', gain: 0.12, delay: 0.06, slideTo: 1320 });
   },
   dash() { noise(0.18, { gain: 0.2, type: 'bandpass', freq: 2200, q: 2 }); tone(520, 0.16, { type: 'sawtooth', gain: 0.08, slideTo: 1200 }); },
-  hurt() { tone(220, 0.22, { type: 'sawtooth', gain: 0.22, slideTo: 70 }); noise(0.2, { gain: 0.15, type: 'lowpass', freq: 700 }); },
+  hurt() { duck(0.5, 0.3); tone(220, 0.22, { type: 'sawtooth', gain: 0.22, slideTo: 70 }); noise(0.2, { gain: 0.15, type: 'lowpass', freq: 700 }); },
   spell(kind = 0) {
     const base = [330, 392, 261][kind % 3];
     tone(base, 0.3, { type: 'sawtooth', gain: 0.14, slideTo: base * 3 });
@@ -101,13 +114,13 @@ export const sfx = {
   levelup() {
     [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.4, { type: 'triangle', gain: 0.16, delay: i * 0.08 }));
   },
-  bossWarn() { tone(110, 0.8, { type: 'sawtooth', gain: 0.25, slideTo: 70 }); tone(55, 1.0, { type: 'square', gain: 0.18 }); },
+  bossWarn() { duck(0.7, 1.0); tone(110, 0.8, { type: 'sawtooth', gain: 0.25, slideTo: 70 }); tone(55, 1.0, { type: 'square', gain: 0.18 }); },
   // soft rising windup — an audio telegraph for charging attacks (pulsar/warden/boss)
   charge() { tone(300, 0.5, { type: 'sine', gain: 0.045, slideTo: 720 }); },
   // weighty, faintly ominous seal for forging a Pact
-  pact() { tone(140, 0.55, { type: 'sawtooth', gain: 0.16, slideTo: 90 }); tone(420, 0.5, { type: 'sine', gain: 0.08, delay: 0.05, slideTo: 580 }); noise(0.3, { gain: 0.08, type: 'bandpass', freq: 1400, q: 1.2 }); },
+  pact() { duck(0.6, 0.55); tone(140, 0.55, { type: 'sawtooth', gain: 0.16, slideTo: 90 }); tone(420, 0.5, { type: 'sine', gain: 0.08, delay: 0.05, slideTo: 580 }); noise(0.3, { gain: 0.08, type: 'bandpass', freq: 1400, q: 1.2 }); },
   // short stinger when a boss escalates to a new phase
-  phase() { tone(160, 0.45, { type: 'square', gain: 0.13, slideTo: 300 }); noise(0.22, { gain: 0.1, type: 'lowpass', freq: 1000 }); },
+  phase() { duck(0.6, 0.45); tone(160, 0.45, { type: 'square', gain: 0.13, slideTo: 300 }); noise(0.22, { gain: 0.1, type: 'lowpass', freq: 1000 }); },
   win() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, 0.6, { type: 'sine', gain: 0.18, delay: i * 0.12 })); },
   lose() { [330, 294, 262, 196].forEach((f, i) => tone(f, 0.6, { type: 'sawtooth', gain: 0.16, delay: i * 0.16, slideTo: f * 0.6 })); },
 };
@@ -117,6 +130,7 @@ const scale = [196, 220, 261.63, 294, 330, 392];
 let musicStep = 0;
 export function startMusic() {
   if (!ctx || musicTimer) return;
+  musicTarget = 0.5;
   musicGain.gain.setTargetAtTime(0.5, ctx.currentTime, 1.5);
   const beat = () => {
     if (!ctx) return;
@@ -130,9 +144,11 @@ export function startMusic() {
   beat();
 }
 export function setMusicIntensity(x) {
-  if (musicGain && ctx) musicGain.gain.setTargetAtTime(0.4 + x * 0.4, ctx.currentTime, 0.8);
+  musicTarget = 0.4 + x * 0.4;
+  if (musicGain && ctx) musicGain.gain.setTargetAtTime(musicTarget, ctx.currentTime, 0.8);
 }
 export function stopMusic() {
   if (musicTimer) { clearTimeout(musicTimer); musicTimer = null; }
+  musicTarget = 0;
   if (musicGain && ctx) musicGain.gain.setTargetAtTime(0, ctx.currentTime, 0.6);
 }
