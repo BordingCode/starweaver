@@ -7,6 +7,7 @@ import { World } from './game/world.js';
 import { drawWorld } from './game/render.js';
 import { UPGRADES, SPELLS, RARITY_WEIGHT } from './game/content.js';
 import { initAudio, resumeAudio, setMuted, isMuted, sfx, startMusic, stopMusic, setMusicIntensity } from './audio.js';
+import { iconSVG } from './icons.js';
 
 const canvas = document.getElementById('game');
 const app = document.getElementById('app');
@@ -60,7 +61,7 @@ function buildHUD() {
   const p = Game.world.player;
   p.spells.forEach((id, slot) => {
     const def = SPELLS[id];
-    const b = el('button', 'spell-btn' + (def.dash ? ' dash' : ''), `<div class="cd"></div><span>${def.icon}</span><span class="spell-key">${def.key}</span>`);
+    const b = el('button', 'spell-btn' + (def.dash ? ' dash' : ''), `<div class="cd"></div>${iconSVG(id) || `<span>${def.icon}</span>`}<span class="spell-key">${def.key}</span>`);
     const cast = (ev) => { ev.preventDefault(); if (Game.screen !== 'playing') return; resumeAudio(); Game.world.castSpell(slot); };
     b.addEventListener('pointerdown', cast, { passive: false });
     dock.append(b); spellBtns.push(b);
@@ -227,8 +228,9 @@ function showUpgrade() {
   const picks = weightedPick();
   picks.forEach((u) => {
     const c = el('div', `card rar-${u.rarity}`);
+    const iconKey = u.spell || u.id;
     c.append(
-      el('div', 'card-icon', u.icon),
+      el('div', 'card-icon', iconSVG(iconKey) || u.icon),
       (() => { const b = el('div', 'card-body'); b.append(el('div', 'card-name', u.name), el('div', 'card-desc', u.desc)); return b; })(),
       el('div', 'card-tag', u.rarity),
     );
@@ -245,7 +247,7 @@ function showUpgrade() {
   // show current loadout chips
   const lo = el('div', 'loadout');
   const counts = w.upCounts || {};
-  Object.keys(counts).forEach((id) => { const u = UPGRADES.find((x) => x.id === id); if (u) lo.append(el('div', 'chip', `${u.icon} ${u.name}${counts[id] > 1 ? ' ×' + counts[id] : ''}`)); });
+  Object.keys(counts).forEach((id) => { const u = UPGRADES.find((x) => x.id === id); if (u) lo.append(el('div', 'chip', `${iconSVG(id)}<span>${u.name}${counts[id] > 1 ? ' ×' + counts[id] : ''}</span>`)); });
   if (lo.children.length) s.append(lo);
   app.append(s);
   syncDebug();
