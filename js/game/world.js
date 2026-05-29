@@ -837,8 +837,16 @@ export class World {
       burst(sx, sy, 12, { color: '#aef0ff', speed: 200, life: 0.4, r: 3 });
       this.enemies.forEach((o) => { if (o !== e && o.alive && !o.isBoss && dist2(sx, sy, o.x, o.y) < 80 * 80) this.damageEnemy(o, sd, o.x, o.y, false); });
     }
-    // combo + score
-    this.combo++; this.comboT = 2.4; this.mult = 1 + Math.floor(this.combo / 5) * 0.5;
+    // combo + score (celebrate each multiplier step-up — the score-chase payoff)
+    this.combo++; this.comboT = 2.4;
+    const newMult = 1 + Math.floor(this.combo / 5) * 0.5;
+    if (newMult > this.mult && !e.isBoss) {
+      const tier = Math.floor(this.combo / 5);
+      sfx.combo(tier);
+      floatText(p.x, p.y - 36, '×' + newMult.toFixed(1), { color: '#ffd166', size: 22, crit: true });
+      screenFlash(0.12, '255,209,102');
+    }
+    this.mult = newMult;
     this.score += Math.round(e.score * this.mult);
     // lifesteal
     if (p.lifesteal > 0) { p.hp = Math.min(p.maxHp, p.hp + p.lifesteal); }
