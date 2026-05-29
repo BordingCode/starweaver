@@ -177,7 +177,7 @@ export class World {
       e.spawnAnim = 1.2; e.phase = 0; e.lastPhase = 0; e.atkT = 2.4; e.atkMode = 0; e.spin = 0; e.dir = 1; e.shield = 0; e.tele = 0; e.pullT = 0;
       // set-piece state: scripted phase transition, armor window, low-HP enrage,
       // post-attack vulnerable window, chip-damage bar, multi-stage death
-      e.transT = 0; e.invuln = 0; e.enrage = 0; e.vuln = 0; e.deathT = 0; e.hpShown = hp; e.mainCol = b.color;
+      e.transT = 0; e.invuln = 0; e.enrage = 0; e.vuln = 0; e.deathT = 0; e.hpShown = hp; e.mainCol = b.color; e.echoT = 0;
     });
   }
 
@@ -661,6 +661,8 @@ export class World {
       return;                                            // no attacks/pull/contact this frame
     }
     e.atkT -= dt * (1 + (1 - frac) * 0.5);
+    // Overclock echo: a delayed repeat of the Chronometh's Tick
+    if (e.echoT > 0) { e.echoT -= dt; if (e.echoT <= 0) { for (let i = 0; i < 18; i++) this.spawnEBullet(e.x, e.y, (i / 18) * TAU + e.spin, 135, '#ffd14d', { r: 7 }); addTrauma(0.15); } }
     // telegraph charge
     e.tele = clamp(1 - e.atkT / 0.6, 0, 1);
     if (e.tele > 0.4 && Math.random() < 0.5) burst(e.x, e.y, 1, { color: warden ? '#cfe' : '#fff', speed: 60, dir: -Math.PI / 2 + (Math.random() - 0.5), spread: 0.4, life: 0.2, r: 2 });
@@ -686,6 +688,12 @@ export class World {
     const a = angle(e.x, e.y, p.x, p.y);
     const sp = 210;
     if (e.atkMode === 0) {
+      if (e.phase === 2) { // BLOOM (desperation): slow double ring with a survivable rotating gap
+        const gap = e.spin % TAU;
+        const ring = (n, sp2, rot) => { for (let i = 0; i < n; i++) { const ang = (i / n) * TAU + rot; if (Math.abs(((ang - gap + Math.PI) % TAU + TAU) % TAU - Math.PI) < 0.5) continue; this.spawnEBullet(e.x, e.y, ang, sp2, '#ff6fb3'); } };
+        ring(20, 150, e.spin); ring(16, 120, e.spin + Math.PI / 16);
+        addTrauma(0.3); return;
+      }
       // radial ring
       const n = 18 + e.phase * 6;
       for (let i = 0; i < n; i++) this.spawnEBullet(e.x, e.y, (i / n) * TAU + e.spin, sp, '#ff4d9d');
@@ -707,7 +715,13 @@ export class World {
   wardenAttack(e) {
     const p = this.player;
     const IND = '#6b6bff';
-    if (e.phase === 0 || (e.phase === 2 && e.atkMode === 0)) {
+    if (e.phase === 2 && e.atkMode === 0) {
+      // COLLAPSE (desperation): drag the player inward, then a tidal wall to dash through
+      e.pullT = 1.0; screenFlash(0.2, '107,107,255');
+      const gapX = 60 + this.rng() * (WORLD_W - 120); const step = 44;
+      for (let x = 20; x < WORLD_W - 10; x += step) { if (Math.abs(x - gapX) < 62) continue; this.spawnEBullet(x, 30, Math.PI / 2, 175, IND, { r: 8 }); }
+      addTrauma(0.35);
+    } else if (e.phase === 0) {
       // Tidal wall: a row of bullets across the screen with one ~90px gap
       const gapX = 60 + this.rng() * (WORLD_W - 120);
       const step = 44;
@@ -750,7 +764,7 @@ export class World {
       // The Tick — the sector-signature slow radial pulse (charges via e.tele core glow)
       ring(18, 135, e.spin, AMBER);
       if (e.phase >= 1) ring(20, 150, e.spin + Math.PI / 20, AMBER);          // phase 1: offset second ring (narrower gap)
-      if (e.phase >= 2) ring(16, 110, e.spin + Math.PI / 16, CYAN);           // phase 2: overlapping inner rhythm
+      if (e.phase >= 2) { ring(16, 110, e.spin + Math.PI / 16, CYAN); e.echoT = 0.35; } // phase 2 OVERCLOCK: a second Tick echoes 0.35s later
       addTrauma(0.2);
     } else if (e.atkMode === 1) {
       // Sweep hand — a line of bullets along the long clock-hand, spread by speed
