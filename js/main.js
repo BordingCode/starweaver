@@ -8,7 +8,7 @@ import { drawWorld } from './game/render.js';
 import { UPGRADES, SPELLS, RARITY_WEIGHT, PACTS, ENEMIES, AFFIXES } from './game/content.js';
 import { initAudio, resumeAudio, setMuted, isMuted, sfx, startMusic, stopMusic, setMusicIntensity, setSfx, setBossMusic } from './audio.js';
 import { iconSVG, cardIcon } from './icons.js';
-import { SHOP, costOf, dustEarned, applyMeta } from './game/meta.js';
+import { SHOP, costOf, dustEarned, applyMeta, SHIPS, WEAPONS, applyShipWeapon } from './game/meta.js';
 
 const canvas = document.getElementById('game');
 const app = document.getElementById('app');
@@ -164,6 +164,7 @@ function startRun() {
   Game.world = new World();
   Game.world.player.spells = ['dash', Game.meta.loadout || 'nova'];
   Game.world.player.spellCd = [0, 0];
+  applyShipWeapon(Game.world.player, Game.meta.ship || 'vanguard', Game.meta.weapon || 'pulse'); // selected ship + weapon
   const grants = applyMeta(Game.world.player, Game.meta.upg || {});
   Game.world.rerolls = grants.rerolls; Game.world.maxRerolls = grants.rerolls;
   Game.world.revives = grants.revives; Game.world.luck = grants.luck;
@@ -389,13 +390,40 @@ function showHangar() {
   Game.screen = 'hangar';
   clearApp();
   const s = el('div', 'screen hangar');
-  s.append(el('div', 'pick-title', 'Hangar — Permanent Upgrades'));
+  s.append(el('div', 'pick-title', 'Hangar'));
   const dustEl = el('div', 'dust-line', `${iconSVG('spellpow')}<span>${Game.meta.dust || 0} Stardust</span>`);
   s.append(dustEl);
   const list = el('div', 'shop');
+  // ships & weapons: buy (cost) → owned → tap to equip; current shows EQUIPPED
+  const renderFleet = (items, ownedKey, selKey) => {
+    items.forEach((item) => {
+      const owned = item.cost === 0 || (Game.meta[ownedKey] && Game.meta[ownedKey][item.id]);
+      const equipped = Game.meta[selKey] === item.id;
+      const afford = (Game.meta.dust || 0) >= item.cost;
+      const c = el('div', `card shop-card${equipped ? ' equipped' : owned ? '' : afford ? '' : ' poor'}`);
+      c.append(
+        el('div', 'card-icon', iconSVG(item.icon)),
+        (() => { const b = el('div', 'card-body'); b.append(el('div', 'card-name', item.name), el('div', 'card-desc', item.desc)); return b; })(),
+        el('div', 'shop-cost', equipped ? 'EQUIPPED' : owned ? 'EQUIP' : `${iconSVG('spellpow')}${item.cost}`),
+      );
+      c.addEventListener('click', () => {
+        if (equipped) return;
+        if (owned) { Game.meta[selKey] = item.id; saveMeta(); sfx.pickup(); render(); return; }
+        if ((Game.meta.dust || 0) < item.cost) { sfx.hit(); return; }
+        Game.meta.dust -= item.cost; (Game.meta[ownedKey] = Game.meta[ownedKey] || {})[item.id] = 1;
+        Game.meta[selKey] = item.id; saveMeta(); sfx.levelup(); render();
+      });
+      list.append(c);
+    });
+  };
   const render = () => {
     list.replaceChildren();
     dustEl.innerHTML = `${iconSVG('spellpow')}<span>${Game.meta.dust || 0} Stardust</span>`;
+    list.append(el('div', 'guide-head', 'Ships'));
+    renderFleet(SHIPS, 'ownedShips', 'ship');
+    list.append(el('div', 'guide-head', 'Weapons'));
+    renderFleet(WEAPONS, 'ownedWeapons', 'weapon');
+    list.append(el('div', 'guide-head', 'Permanent Upgrades'));
     SHOP.forEach((item) => {
       const lvl = (Game.meta.upg && Game.meta.upg[item.id]) || 0;
       const maxed = lvl >= item.max;

@@ -189,6 +189,8 @@ html, body {
 .shop-card { cursor:pointer; }
 .shop-card.poor { opacity:.55; }
 .shop-card.maxed { opacity:.7; box-shadow: inset 0 0 0 1.5px var(--gold); }
+.shop-card.equipped { box-shadow: inset 0 0 0 1.5px var(--cyan), 0 0 18px rgba(52,245,255,.2); }
+.shop-card.equipped .shop-cost { color: var(--cyan); }
 .shop-cost { display:inline-flex; align-items:center; gap:4px; font-family:'Orbitron',sans-serif; font-weight:700; font-size:14px; color:var(--gold); flex:0 0 auto; }
 .shop-cost .ic { width:14px; height:14px; color:var(--gold); }
 .pips { display:flex; gap:4px; margin-top:6px; }

@@ -9,7 +9,7 @@ export const Game = {
 };
 
 function defaultMeta() {
-  return { best: 0, runs: 0, kills: 0, wins: 0, muted: false, dust: 0, upg: {}, loadout: 'nova', ascension: 0, ascensionMax: 0, settings: { music: true, sfx: true, haptics: true, reduceMotion: false } };
+  return { best: 0, runs: 0, kills: 0, wins: 0, muted: false, dust: 0, upg: {}, loadout: 'nova', ascension: 0, ascensionMax: 0, ship: 'vanguard', weapon: 'pulse', ownedShips: { vanguard: 1 }, ownedWeapons: { pulse: 1 }, settings: { music: true, sfx: true, haptics: true, reduceMotion: false } };
 }
 function loadMeta() {
   try {

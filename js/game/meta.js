@@ -26,6 +26,25 @@ export function costOf(item, level) {
   return Math.round(item.base * Math.pow(item.grow, level));
 }
 
+// ---------------- SHIPS & WEAPONS (buyable, then selectable) ----------------
+// Each is a playstyle identity applied to a fresh player at run start. Vanguard/Pulse are free.
+export const SHIPS = [
+  { id: 'vanguard',  name: 'Vanguard',  icon: 'maxhp',     cost: 0,   desc: 'Balanced all-rounder.', apply: () => {} },
+  { id: 'juggernaut',name: 'Juggernaut',icon: 'shield',    cost: 350, desc: '+60% max HP, but 15% slower.', apply: (p) => { p.maxHp = Math.round(p.maxHp * 1.6); p.moveSpeed *= 0.85; } },
+  { id: 'wraith',    name: 'Wraith',    icon: 'speed',     cost: 350, desc: '+25% speed & faster Blink, −25% HP.', apply: (p) => { p.moveSpeed *= 1.25; p.maxHp = Math.round(p.maxHp * 0.75); p.spellCdMult *= 0.85; } },
+  { id: 'arcanist',  name: 'Arcanist',  icon: 'spellpow',  cost: 450, desc: '+60% spell power, −25% cooldowns, −15% fire rate.', apply: (p) => { p.spellPower *= 1.6; p.spellCdMult *= 0.75; p.fireRate *= 0.85; } },
+];
+export const WEAPONS = [
+  { id: 'pulse',   name: 'Pulse Cannon', icon: 'firerate',  cost: 0,   desc: 'Balanced forward shot.', apply: () => {} },
+  { id: 'scatter', name: 'Scattergun',   icon: 'multishot', cost: 350, desc: '3-way spread; less damage each.', apply: (p) => { p.bulletCount += 2; p.spread = Math.max(p.spread, 0.34); p.bulletDmg *= 0.62; } },
+  { id: 'lance',   name: 'Rail Lance',   icon: 'pierce',    cost: 400, desc: 'Slow, hard-hitting, pierces foes.', apply: (p) => { p.bulletDmg *= 2.2; p.fireRate *= 0.55; p.pierce += 2; p.bulletSpeed *= 1.2; p.bulletSize *= 1.3; } },
+  { id: 'twin',    name: 'Twin-Link',    icon: 'rear',      cost: 300, desc: 'Fires forward and backward.', apply: (p) => { p.rearShot = true; p.fireRate *= 1.1; } },
+];
+export function applyShipWeapon(player, shipId, weaponId) {
+  const s = SHIPS.find((x) => x.id === shipId); if (s) s.apply(player);
+  const wp = WEAPONS.find((x) => x.id === weaponId); if (wp) wp.apply(player);
+}
+
 // dust earned from a finished run — a deliberately lean faucet (it's meant to be a grind)
 export function dustEarned(score, wave, won, upg) {
   const base = Math.floor(score / 14) + wave * 8 + (won ? 200 : 0);
