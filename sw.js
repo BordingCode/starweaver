@@ -1,5 +1,5 @@
 // Starweaver service worker — network-first, cache fallback. Bump CACHE on change.
-const CACHE = 'starweaver-v6';
+const CACHE = 'starweaver-v7';
 const SHELL = [
   './',
   './index.html',
@@ -19,7 +19,8 @@ const SHELL = [
   './js/game/world.js',
   './js/game/render.js',
   './js/game/content.js',
-  './js/game/player.js'
+  './js/game/player.js',
+  './js/game/meta.js'
 ];
 
 self.addEventListener('install', (e) => {

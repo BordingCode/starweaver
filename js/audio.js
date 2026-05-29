@@ -5,6 +5,8 @@ let master = null;
 let musicGain = null;
 let muted = false;
 let musicTimer = null;
+let sfxOn = true;
+export function setSfx(b) { sfxOn = b; }
 
 export function initAudio() {
   if (ctx) return;
@@ -41,6 +43,7 @@ function noiseBuf(dur) {
 
 function tone(freq, dur, { type = 'sine', gain = 0.3, slideTo = null, delay = 0, attack = 0.005, dest = null } = {}) {
   if (!ctx) return;
+  if (!sfxOn && !dest) return; // sfx muted (music passes dest=musicGain and is unaffected)
   const t0 = ctx.currentTime + delay;
   const o = ctx.createOscillator();
   const g = ctx.createGain();
@@ -55,7 +58,7 @@ function tone(freq, dur, { type = 'sine', gain = 0.3, slideTo = null, delay = 0,
 }
 
 function noise(dur, { gain = 0.3, type = 'highpass', freq = 1200, q = 0.7, delay = 0 } = {}) {
-  if (!ctx) return;
+  if (!ctx || !sfxOn) return; // noise is only used for sfx
   const t0 = ctx.currentTime + delay;
   const src = ctx.createBufferSource();
   src.buffer = noiseBuf(dur);

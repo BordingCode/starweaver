@@ -29,6 +29,7 @@ export class World {
     this.waveClearT = 0;
     this.boss = null;
     this.endless = false;
+    this.rerolls = 0; this.revives = 0; this.luck = 0;
     this.time = 0;
     this.shotsToCredit = 0;
     this.targetX = this.player.x; this.targetY = this.player.y;
@@ -113,14 +114,25 @@ export class World {
   win() { this.state = 'won'; this.over = true; this.won = true; sfx.win(); if (this.onGameOver) this.onGameOver(true); }
   die() {
     if (this.over) return;
-    this.state = 'dead'; this.over = true; this.won = false;
     const p = this.player;
+    // Phoenix Core: revive once per run
+    if (this.revives > 0) {
+      this.revives -= 1;
+      p.hp = Math.round(p.maxHp * 0.5); p.invuln = 2.0; p.shield = p.maxShield;
+      this.eBullets.clear();
+      sfx.levelup(); FX.trauma = 0.6; screenFlash(0.5, '93,255,176');
+      shockwave(p.x, p.y, { color: '#5dffb0', max: 260, dur: 0.6, width: 6 });
+      burst(p.x, p.y, 40, { color: '#5dffb0', speed: 280, life: 0.8, r: 3 });
+      floatText(p.x, p.y - 30, 'REVIVED', { color: '#5dffb0', size: 22, crit: true });
+      return;
+    }
+    this.state = 'dead'; this.over = true; this.won = false;
     sfx.explode(true); sfx.lose();
     FX.trauma = 1; hitStop(0.12); screenFlash(0.6, '255,84,112');
     burst(p.x, p.y, 70, { color: '#aef6ff', speed: 360, life: 1.0, r: 4 });
     burst(p.x, p.y, 40, { color: '#ff5470', speed: 240, life: 0.8, r: 3 });
     shockwave(p.x, p.y, { color: '#fff', max: 220, dur: 0.7, width: 6 });
-    if (navigator.vibrate) navigator.vibrate([60, 40, 80]);
+    if (navigator.vibrate && window.__haptics !== false) navigator.vibrate([60, 40, 80]);
     if (this.onGameOver) this.onGameOver(false);
   }
 
@@ -618,8 +630,9 @@ export class World {
       o.life -= dt; o.bob += dt * 4;
       if (o.life <= 0) { o.alive = false; return; }
       const d = dist(o.x, o.y, p.x, p.y);
-      if (d < 110) { // magnet toward the ship
-        const a = angle(o.x, o.y, p.x, p.y); const pull = 260 * (1 - d / 110) + 40;
+      const mag = p.magnet || 110;
+      if (d < mag) { // magnet toward the ship
+        const a = angle(o.x, o.y, p.x, p.y); const pull = 260 * (1 - d / mag) + 40;
         o.vx += Math.cos(a) * pull * dt * 6; o.vy += Math.sin(a) * pull * dt * 6;
       } else { o.vy = Math.min(o.vy + 20 * dt, 80); o.vx *= 0.96; }
       o.x += o.vx * dt; o.y += o.vy * dt;
@@ -638,7 +651,7 @@ export class World {
       floatText(p.x, p.y - 20, '+SHIELD', { color: '#34f5ff', size: 16 });
       burst(p.x, p.y, 10, { color: '#34f5ff', speed: 120, life: 0.4, r: 2.5 });
     } else {
-      const heal = Math.round(p.maxHp * 0.12);
+      const heal = Math.round(p.maxHp * 0.12 * (p.healBonus || 1));
       p.hp = Math.min(p.maxHp, p.hp + heal);
       floatText(p.x, p.y - 20, '+' + heal, { color: '#5dffb0', size: 18 });
       burst(p.x, p.y, 10, { color: '#5dffb0', speed: 120, life: 0.4, r: 2.5 });
@@ -658,7 +671,7 @@ export class World {
     p.hp -= amt; p.flash = 1; p.invuln = 0.6;
     sfx.hurt();
     addTrauma(0.4); screenFlash(0.3, '255,84,112'); hitStop(0.05);
-    if (navigator.vibrate) navigator.vibrate(40);
+    if (navigator.vibrate && window.__haptics !== false) navigator.vibrate(40);
     burst(p.x, p.y, 10, { color: '#ff5470', speed: 160, life: 0.4, r: 3 });
     if (p.hp <= 0) { p.hp = 0; this.die(); }
   }

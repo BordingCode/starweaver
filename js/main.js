@@ -6,8 +6,9 @@ import { FX, updateFX, clearFX } from './engine/fx.js';
 import { World } from './game/world.js';
 import { drawWorld } from './game/render.js';
 import { UPGRADES, SPELLS, RARITY_WEIGHT } from './game/content.js';
-import { initAudio, resumeAudio, setMuted, isMuted, sfx, startMusic, stopMusic, setMusicIntensity } from './audio.js';
+import { initAudio, resumeAudio, setMuted, isMuted, sfx, startMusic, stopMusic, setMusicIntensity, setSfx } from './audio.js';
 import { iconSVG } from './icons.js';
+import { SHOP, costOf, dustEarned, applyMeta } from './game/meta.js';
 
 const canvas = document.getElementById('game');
 const app = document.getElementById('app');
@@ -112,9 +113,14 @@ function toast(text) { if (!toastEl) return; toastEl.textContent = text; toastEl
 
 // ---------------- Run flow ----------------
 function startRun() {
-  resumeAudio(); startMusic();
+  resumeAudio(); if (Game.meta.settings.music !== false) startMusic();
   clearFX();
   Game.world = new World();
+  Game.world.player.spells = ['dash', Game.meta.loadout || 'nova'];
+  Game.world.player.spellCd = [0, 0];
+  const grants = applyMeta(Game.world.player, Game.meta.upg || {});
+  Game.world.rerolls = grants.rerolls; Game.world.maxRerolls = grants.rerolls;
+  Game.world.revives = grants.revives; Game.world.luck = grants.luck;
   Game.world.onWaveClear = onWaveClear;
   Game.world.onGameOver = onGameOver;
   Game.world.startWave(0);
@@ -170,6 +176,9 @@ function onGameOver(won) {
   const w = Game.world;
   if (w.score > Game.meta.best) Game.meta.best = w.score;
   if (won) Game.meta.wins++;
+  const earned = dustEarned(w.score, w.wave, won, Game.meta.upg || {});
+  Game.meta.dust = (Game.meta.dust || 0) + earned;
+  w.dustEarned = earned;
   saveMeta();
   removeHUD();
   showGameOver(won);
@@ -186,12 +195,62 @@ function showTitle() {
     el('div', 'title-logo', 'STAR<br>WEAVER'),
     el('div', 'title-tag', 'weave · dodge · break the swarm'),
   );
+  s.append(el('div', 'dust-line', `${iconSVG('spellpow')}<span>${Game.meta.dust || 0} Stardust</span>`));
   const play = el('button', 'btn', '▶ Play');
   play.addEventListener('click', () => { resumeAudio(); startRun(); });
   s.append(play);
+  const row = el('div', 'row');
+  const hangar = el('button', 'btn ghost', 'Hangar');
+  hangar.addEventListener('click', () => { resumeAudio(); showHangar(); });
+  const setBtn = el('button', 'btn ghost', 'Settings');
+  setBtn.addEventListener('click', () => { resumeAudio(); showSettings(); });
+  row.append(hangar, setBtn);
+  s.append(row);
   if (Game.meta.best > 0) s.append(el('div', 'stat-line', `Best run: ${Game.meta.best}`));
   s.append(el('div', 'hint', 'Drag to fly — your ship floats above your finger. You only <b>shoot while still</b>, so dodge, then stand and unload. Tap the orbs to <b>Blink</b> and cast arcana. Clear a wave, pick a power, repeat.'));
   clearApp(); app.append(s);
+  syncDebug();
+}
+
+function showHangar() {
+  Game.screen = 'hangar';
+  clearApp();
+  const s = el('div', 'screen hangar');
+  s.append(el('div', 'pick-title', 'Hangar — Permanent Upgrades'));
+  const dustEl = el('div', 'dust-line', `${iconSVG('spellpow')}<span>${Game.meta.dust || 0} Stardust</span>`);
+  s.append(dustEl);
+  const list = el('div', 'shop');
+  const render = () => {
+    list.replaceChildren();
+    dustEl.innerHTML = `${iconSVG('spellpow')}<span>${Game.meta.dust || 0} Stardust</span>`;
+    SHOP.forEach((item) => {
+      const lvl = (Game.meta.upg && Game.meta.upg[item.id]) || 0;
+      const maxed = lvl >= item.max;
+      const cost = costOf(item, lvl);
+      const afford = (Game.meta.dust || 0) >= cost;
+      const c = el('div', `card shop-card${maxed ? ' maxed' : afford ? '' : ' poor'}`);
+      c.append(
+        el('div', 'card-icon', iconSVG(item.icon)),
+        (() => { const b = el('div', 'card-body');
+          b.append(el('div', 'card-name', item.name), el('div', 'card-desc', item.desc(Math.min(lvl + 1, item.max))));
+          const pips = el('div', 'pips'); for (let i = 0; i < item.max; i++) pips.append(el('span', 'pip' + (i < lvl ? ' on' : ''))); b.append(pips);
+          return b; })(),
+        el('div', 'shop-cost', maxed ? 'MAX' : `${iconSVG('spellpow')}${cost}`),
+      );
+      if (!maxed) c.addEventListener('click', () => {
+        const lv = (Game.meta.upg[item.id]) || 0; const cst = costOf(item, lv);
+        if ((Game.meta.dust || 0) < cst) { sfx.hit(); return; }
+        Game.meta.dust -= cst; Game.meta.upg[item.id] = lv + 1; saveMeta(); sfx.pickup(); render();
+      });
+      list.append(c);
+    });
+  };
+  render();
+  s.append(list);
+  const back = el('button', 'btn', '◂ Back');
+  back.addEventListener('click', () => showTitle());
+  s.append(back);
+  app.append(s);
   syncDebug();
 }
 
@@ -208,11 +267,14 @@ function weightedPick(rng = Math.random) {
     const id = unequipped[Math.floor(rng() * unequipped.length)];
     chosen.push({ spell: id, id: 'spell_' + id, name: 'Learn ' + SPELLS[id].name, icon: SPELLS[id].icon, rarity: 'epic', desc: SPELLS[id].desc + ' (new arcana)' });
   }
+  // luck shifts weight toward rare/epic
+  const luck = w.luck || 0;
+  const rw = { common: RARITY_WEIGHT.common, rare: RARITY_WEIGHT.rare * (1 + 0.25 * luck), epic: RARITY_WEIGHT.epic * (1 + 0.35 * luck) };
   const bag = pool.slice();
   while (chosen.length < 3 && bag.length) {
-    let total = 0; for (const u of bag) total += RARITY_WEIGHT[u.rarity] || 50;
+    let total = 0; for (const u of bag) total += rw[u.rarity] || 50;
     let r = rng() * total, idx = 0;
-    for (let i = 0; i < bag.length; i++) { r -= RARITY_WEIGHT[bag[i].rarity] || 50; if (r <= 0) { idx = i; break; } }
+    for (let i = 0; i < bag.length; i++) { r -= rw[bag[i].rarity] || 50; if (r <= 0) { idx = i; break; } }
     chosen.push(bag.splice(idx, 1)[0]);
   }
   return chosen;
@@ -244,11 +306,52 @@ function showUpgrade() {
     cards.append(c);
   });
   s.append(cards);
+  // reroll button (uses run rerolls from the Recalibrator meta upgrade)
+  if (w.rerolls > 0) {
+    const rr = el('button', 'btn ghost reroll-btn', `${iconSVG('ricochet')}<span>Reroll (${w.rerolls})</span>`);
+    rr.addEventListener('click', () => { if (w.rerolls <= 0) return; w.rerolls--; resumeAudio(); sfx.dash(); showUpgrade(); });
+    s.append(rr);
+  }
   // show current loadout chips
   const lo = el('div', 'loadout');
   const counts = w.upCounts || {};
   Object.keys(counts).forEach((id) => { const u = UPGRADES.find((x) => x.id === id); if (u) lo.append(el('div', 'chip', `${iconSVG(id)}<span>${u.name}${counts[id] > 1 ? ' ×' + counts[id] : ''}</span>`)); });
   if (lo.children.length) s.append(lo);
+  app.append(s);
+  syncDebug();
+}
+
+function applySettings() {
+  const st = Game.meta.settings;
+  setSfx(st.sfx !== false);
+  FX.reducedMotion = st.reduceMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.__haptics = st.haptics !== false;
+}
+
+function showSettings() {
+  Game.screen = 'settings';
+  clearApp();
+  const st = Game.meta.settings;
+  const s = el('div', 'screen');
+  s.append(el('div', 'pick-title', 'Settings'));
+  const mk = (label, key) => {
+    const row = el('div', 'toggle-row');
+    const on = st[key] !== false;
+    row.append(el('span', 'toggle-label', label));
+    const sw = el('button', 'switch' + (on ? ' on' : ''), '<span class="knob"></span>');
+    sw.addEventListener('click', () => {
+      st[key] = !(st[key] !== false); sw.classList.toggle('on', st[key]);
+      saveMeta(); applySettings();
+      if (key === 'music') { if (st.music) { resumeAudio(); startMusic(); } else stopMusic(); }
+      sfx.pickup();
+    });
+    row.append(sw); return row;
+  };
+  s.append(mk('Music', 'music'), mk('Sound effects', 'sfx'), mk('Vibration', 'haptics'), mk('Reduce motion', 'reduceMotion'));
+  s.append(el('div', 'hint', 'Reduce motion turns off screen-shake and flashing for comfort.'));
+  const back = el('button', 'btn', '◂ Back');
+  back.addEventListener('click', () => showTitle());
+  s.append(back);
   app.append(s);
   syncDebug();
 }
@@ -261,6 +364,7 @@ function showGameOver(won) {
   s.append(el('div', 'stat-line', won ? 'You shattered the Weaver Queen.' : `You fell on ${w.waves[w.wave] ? w.waves[w.wave].label : 'the swarm'}.`));
   s.append(el('div', 'stat-big', String(w.score)));
   s.append(el('div', 'stat-line', `Best: ${Game.meta.best}`));
+  s.append(el('div', 'dust-line earned', `${iconSVG('spellpow')}<span>+${w.dustEarned || 0} Stardust  ·  ${Game.meta.dust || 0} total</span>`));
   if (won) {
     const cont = el('button', 'btn', '▸ Endless');
     cont.addEventListener('click', () => resumeEndless());
@@ -269,9 +373,11 @@ function showGameOver(won) {
   }
   const again = el('button', 'btn' + (won ? ' ghost' : ''), '↻ Play Again');
   again.addEventListener('click', () => { resumeAudio(); startRun(); });
+  const hangar = el('button', 'btn ghost', 'Hangar');
+  hangar.addEventListener('click', () => { stopMusic(); showHangar(); });
   const menu = el('button', 'btn ghost', 'Menu');
   menu.addEventListener('click', () => { stopMusic(); showTitle(); });
-  const row = el('div', 'row'); row.append(again, menu);
+  const row = el('div', 'row'); row.append(again, hangar, menu);
   s.append(row);
   app.append(s);
 }
@@ -280,6 +386,7 @@ function showGameOver(won) {
 function boot() {
   if (Game.meta.muted) setMuted(true);
   initAudio();
+  applySettings();
   const splash = document.getElementById('splash');
   setTimeout(() => { splash && splash.classList.add('hide'); setTimeout(() => splash && splash.remove(), 600); }, 500);
   showTitle();

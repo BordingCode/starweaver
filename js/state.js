@@ -8,12 +8,18 @@ export const Game = {
   meta: loadMeta(),     // persistent: best score, runs, unlocks
 };
 
+function defaultMeta() {
+  return { best: 0, runs: 0, kills: 0, wins: 0, muted: false, dust: 0, upg: {}, loadout: 'nova', settings: { music: true, sfx: true, haptics: true, reduceMotion: false } };
+}
 function loadMeta() {
   try {
     const m = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (m && typeof m === 'object') return Object.assign({ best: 0, runs: 0, kills: 0, wins: 0, muted: false }, m);
+    if (m && typeof m === 'object') {
+      const d = defaultMeta();
+      return Object.assign(d, m, { upg: Object.assign({}, m.upg), settings: Object.assign(d.settings, m.settings) });
+    }
   } catch (e) {}
-  return { best: 0, runs: 0, kills: 0, wins: 0, muted: false };
+  return defaultMeta();
 }
 
 export function saveMeta() {

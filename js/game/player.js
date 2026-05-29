@@ -17,6 +17,7 @@ export function makePlayer() {
     // defensive / utility
     orbits: 0, orbitDmg: 6, orbitAngle: 0,
     lifesteal: 0,
+    magnet: 110, healBonus: 1,
     moveSpeed: 1,           // multiplier on drag follow
     damageMult: 1,
     // arcana
