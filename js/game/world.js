@@ -754,6 +754,7 @@ export class World {
     if (!e.alive) return;
     const p = this.player;
     if (e.dmgTaken && e.dmgTaken !== 1) dmg *= e.dmgTaken; // Armored champions shrug off part of the hit
+    if (e.affixes && e.affixes.length && p.championDmg > 1) dmg *= p.championDmg; // Giantslayer
     e.hp -= dmg; e.flash = 1;
     sfx.hit();
     burst(fx, fy, crit ? 7 : 3, { color: crit ? '#ffd166' : '#fff', speed: crit ? 180 : 90, life: 0.3, r: crit ? 3 : 2 });
@@ -805,7 +806,7 @@ export class World {
       if (this.rng() < chance) {
         const wantHeal = p.hp < p.maxHp * 0.85 || p.maxShield === 0;
         const kind = big ? 'heal' : (wantHeal ? 'heal' : (this.rng() < 0.5 && p.maxShield > 0 ? 'shield' : 'heal'));
-        const count = big ? 4 : 1;
+        const count = (big ? 4 : 1) + ((e.affixes && e.affixes.length) ? p.championLoot : 0); // Spoils of War
         for (let k = 0; k < count; k++) this.dropPickup(e.x + (this.rng() - 0.5) * 40, e.y, kind);
       }
     }

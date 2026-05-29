@@ -131,6 +131,10 @@ export const UPGRADES = [
     apply: (p) => { p.shatter = true; } },
   { id: 'vampcrit', name: 'Vampire Spike', icon: 'lifesteal', rarity: 'rare', desc: 'Critical hits heal you a little.', max: 1,
     apply: (p) => { p.critLifesteal = true; } },
+  { id: 'giantslayer', name: 'Giantslayer', icon: 'critdmg', rarity: 'epic', desc: '+40% damage to Champions (ringed elites).', max: 3,
+    apply: (p) => { p.championDmg *= 1.4; } },
+  { id: 'spoils', name: 'Spoils of War', icon: 'spellpow', rarity: 'rare', desc: 'Champions drop +1 extra pickup.', max: 2,
+    apply: (p) => { p.championLoot += 1; } },
 ];
 
 // ---------------- WAVE SCRIPT ----------------

@@ -16,6 +16,8 @@ export function makePlayer() {
     burn: 0, freeze: 0, chainOnHit: 0,
     // build-defining flags
     execute: 0, momentum: false, stillT: 0, glass: false, shatter: false, critLifesteal: false,
+    championDmg: 1, championLoot: 0,   // synergy with Elite champions
+
     burstShots: 1, pendingBursts: 0, burstT: 0,
     // defensive / utility
     orbits: 0, orbitDmg: 6, orbitAngle: 0,
