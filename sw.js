@@ -1,11 +1,13 @@
 // Starweaver service worker — network-first, cache fallback. Bump CACHE on change.
-const CACHE = 'starweaver-v8';
+const CACHE = 'starweaver-v9';
 const SHELL = [
   './',
   './index.html',
   './manifest.json',
   './css/main.css',
   './icons/icon.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
   './js/main.js',
   './js/state.js',
   './js/audio.js',
