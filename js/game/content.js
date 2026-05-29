@@ -144,6 +144,12 @@ export const UPGRADES = [
     apply: (p) => { p.championDmg *= 1.4; } },
   { id: 'spoils', name: 'Spoils of War', icon: 'spellpow', rarity: 'rare', desc: 'Champions drop +1 extra pickup.', max: 2,
     apply: (p) => { p.championLoot += 1; } },
+  { id: 'adrenaline', name: 'Adrenaline', icon: 'firerate', rarity: 'epic', desc: 'Fire up to +45% faster the lower your health.', max: 1,
+    apply: (p) => { p.adrenaline = true; } },
+  { id: 'kinetic', name: 'Kinetic Barrier', icon: 'shield', rarity: 'rare', desc: 'Blink restores shield.', max: 1,
+    apply: (p) => { p.kineticBarrier = true; } },
+  { id: 'splinter', name: 'Splinter Rounds', icon: 'pierce', rarity: 'epic', desc: 'Slain foes spit 2 homing shards.', max: 2,
+    apply: (p) => { p.splinter += 2; } },
 ];
 
 // ---------------- WAVE SCRIPT ----------------

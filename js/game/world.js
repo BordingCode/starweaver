@@ -294,7 +294,8 @@ export class World {
     const canFire = !p.moving && p.dashT <= 0;
     if (canFire && p.fireT <= 0) {
       this.fire();
-      p.fireT = 1 / p.fireRate;
+      const adr = p.adrenaline ? 1 + (1 - p.hp / p.maxHp) * 0.45 : 1; // faster when hurt
+      p.fireT = 1 / (p.fireRate * adr);
       if (p.burstShots > 1) { p.pendingBursts = p.burstShots - 1; p.burstT = 0.07; }
     }
     // staggered extra volleys (Volley card) — fire even while moving so the burst completes
@@ -364,6 +365,7 @@ export class World {
     const DASH = 1500;
     p.dashVx = ax * DASH; p.dashVy = ay * DASH * 0.7;
     p.dashT = 0.16; p.iframes = 0.34;
+    if (p.kineticBarrier) { p.shield = Math.min(Math.max(p.maxShield, 24), p.shield + (p.maxShield > 0 ? p.maxShield * 0.25 : 12)); }
     shockwave(p.x, p.y, { color: '#ffd166', max: 50, dur: 0.35, width: 3 });
     addTrauma(0.12);
   }
@@ -875,6 +877,19 @@ export class World {
         const kind = big ? 'heal' : (wantHeal ? 'heal' : (this.rng() < 0.5 && p.maxShield > 0 ? 'shield' : 'heal'));
         const count = (big ? 4 : 1) + ((e.affixes && e.affixes.length) ? p.championLoot : 0); // Spoils of War
         for (let k = 0; k < count; k++) this.dropPickup(e.x + (this.rng() - 0.5) * 40, e.y, kind);
+      }
+    }
+    // Splinter Rounds: a slain foe spits weak homing shards at nearby enemies
+    if (p.splinter > 0 && !silent && !big) {
+      for (let i = 0; i < p.splinter; i++) {
+        const t = this.nearestEnemy(e.x, e.y, 320, new Set([e]));
+        const a = t ? angle(e.x, e.y, t.x, t.y) : -Math.PI / 2 + (this.rng() - 0.5) * 1.4;
+        this.pBullets.spawn((b) => {
+          b.x = e.x; b.y = e.y; b.vx = Math.cos(a) * 540; b.vy = Math.sin(a) * 540;
+          b.r = 4; b.dmg = p.bulletDmg * 0.5; b.crit = false;
+          b.pierce = 0; b.ricochet = 0; b.homing = 0.5; b.burn = 0; b.freeze = 0; b.chain = 0;
+          b.life = 1.2; b.hitSet.clear();
+        });
       }
     }
     // splitter (native) and Splitting champion both seed minis on death

@@ -17,6 +17,7 @@ export function makePlayer() {
     // build-defining flags
     execute: 0, momentum: false, stillT: 0, glass: false, shatter: false, critLifesteal: false,
     championDmg: 1, championLoot: 0,   // synergy with Elite champions
+    adrenaline: false, kineticBarrier: false, splinter: 0,
 
     burstShots: 1, pendingBursts: 0, burstT: 0,
     // defensive / utility
