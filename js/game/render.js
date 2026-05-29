@@ -56,15 +56,25 @@ function drawVignette(ctx, w) {
   }
 }
 
-let nebulaGrad = null;
+// Each sector gets its own nebula palette so it reads as a distinct place.
+const SECTOR_NEBULA = {
+  1: ['rgba(40,28,90,0.55)', 'rgba(18,12,46,0.5)', 'rgba(5,3,15,0.2)'],   // The Weave — violet
+  2: ['rgba(22,34,84,0.55)', 'rgba(9,16,44,0.5)', 'rgba(4,6,16,0.2)'],    // The Hollows — cold indigo
+  3: ['rgba(74,52,26,0.52)', 'rgba(34,24,34,0.5)', 'rgba(8,5,13,0.22)'],  // The Glare — warm exposure
+};
+let nebulaGrad = null, nebulaKey = null;
 function drawBackground(ctx, w) {
   const t = w ? w.bgShift : performance.now() / 60;
-  // nebula glow (gradient is fixed -> build once and reuse)
-  if (!nebulaGrad) {
+  const sector = (w && w.waves && w.waves[w.wave] && w.waves[w.wave].sector) || 1;
+  const key = SECTOR_NEBULA[sector] ? sector : 1;
+  // nebula glow — rebuild only when the sector (palette) changes
+  if (!nebulaGrad || nebulaKey !== key) {
+    nebulaKey = key;
+    const cols = SECTOR_NEBULA[key];
     nebulaGrad = ctx.createRadialGradient(WORLD_W * 0.5, WORLD_H * 0.25, 40, WORLD_W * 0.5, WORLD_H * 0.3, WORLD_H * 0.8);
-    nebulaGrad.addColorStop(0, 'rgba(40,28,90,0.55)');
-    nebulaGrad.addColorStop(0.5, 'rgba(18,12,46,0.5)');
-    nebulaGrad.addColorStop(1, 'rgba(5,3,15,0.2)');
+    nebulaGrad.addColorStop(0, cols[0]);
+    nebulaGrad.addColorStop(0.5, cols[1]);
+    nebulaGrad.addColorStop(1, cols[2]);
   }
   ctx.fillStyle = '#05030f';
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
