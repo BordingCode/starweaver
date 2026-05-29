@@ -403,7 +403,8 @@ function drawBoss(ctx, w) {
   const tele = e.tele || 0;
   const coreR = e.r * (0.22 + tele * 0.22);
   ctx.globalCompositeOperation = 'lighter';
-  ctx.fillStyle = tele > 0.5 ? '#fff' : (warden ? '#9fb0ff' : chrono ? '#ffe14d' : e.phase === 2 ? '#ffd166' : '#34f5ff');
+  const bigIncoming = e.phase === 2 && e.atkMode === 0; // the heavy/desperation attack is charging
+  ctx.fillStyle = tele > 0.5 ? (bigIncoming ? '#ff3030' : '#fff') : (bigIncoming ? '#ff6a6a' : warden ? '#9fb0ff' : chrono ? '#ffe14d' : e.phase === 2 ? '#ffd166' : '#34f5ff');
   ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8 + tele * 22;
   ctx.beginPath(); ctx.arc(0, 0, coreR, 0, TAU); ctx.fill();
   // vulnerable window — bright white pulsing ring (dodge→punish payoff)
