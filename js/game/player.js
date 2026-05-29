@@ -32,6 +32,8 @@ export function makePlayer() {
     // dash runtime
     iframes: 0, dashVx: 0, dashVy: 0, dashT: 0,
     moving: false, moveHold: 0, fireReadyShake: 0,
+    recoil: 0,            // visual gun kickback (decays)
+    readyPulse: 0,        // brief ring when guns re-engage after moving
     invuln: 0,
     // visuals
     flash: 0,

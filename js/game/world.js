@@ -239,6 +239,9 @@ export class World {
   stepPlayer(dt, input) {
     const p = this.player;
     p.flash = Math.max(0, p.flash - dt * 4);
+    p.recoil = Math.max(0, p.recoil - dt * 55);
+    p.readyPulse = Math.max(0, p.readyPulse - dt * 3);
+    const wasMoving = p.moving;
     if (p.iframes > 0) p.iframes -= dt;
     if (p.invuln > 0) p.invuln -= dt;
 
@@ -271,6 +274,7 @@ export class World {
     if (input.active && moveMag > MOVE_DEADZONE) p.moveHold = MOVE_HOLD;
     else if (p.moveHold > 0) p.moveHold -= dt;
     p.moving = input.active && p.moveHold > 0 && p.dashT <= 0;
+    if (wasMoving && !p.moving) p.readyPulse = 1; // guns just re-engaged — telegraph the fire window
 
     // shield regen
     if (p.maxShield > 0) {
@@ -308,6 +312,7 @@ export class World {
   fire(quiet) {
     const p = this.player;
     if (!quiet) sfx.shoot();
+    p.recoil = Math.min(6, p.recoil + 3); // visual kickback
     const dirs = [];
     const n = p.bulletCount;
     const spread = p.spread;

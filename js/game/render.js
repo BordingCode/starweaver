@@ -11,6 +11,9 @@ const LAYERS = [
 ];
 const stars = LAYERS.map((l) => Array.from({ length: l.n }, () => ({ x: Math.random() * WORLD_W, y: Math.random() * WORLD_H })));
 
+// ease-out-back: overshoots then settles — a satisfying spawn pop (Swink/Eiserloh)
+function easeOutBack(t) { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); }
+
 export function drawWorld(ctx, w, view, alpha) {
   // Background is drawn stable (no shake) and covers every pixel, so we don't
   // need a separate full-screen clear. Only the foreground shakes.
@@ -95,9 +98,19 @@ function drawPlayer(ctx, w) {
   if (w.over && !w.won) return;
   ctx.save();
   ctx.translate(p.x, p.y);
+  // "guns ready" pulse — a soft ring when firing re-engages after moving (teaches the core rule)
+  if (p.readyPulse > 0 && !p.moving) {
+    const k = p.readyPulse;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.45 * k;
+    ctx.strokeStyle = '#aef6ff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, p.r + 5 + (1 - k) * 20, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
   const inv = p.iframes > 0;
   const blink = inv && Math.floor(performance.now() / 60) % 2 === 0;
   ctx.globalAlpha = blink ? 0.35 : 1;
+  ctx.translate(0, p.recoil); // gun kickback nudges the hull back
 
   // engine trail
   if (!p.moving) {
@@ -220,7 +233,8 @@ function drawEnemyBullets(ctx, w) {
 function drawEnemies(ctx, w) {
   w.enemies.forEach((e) => {
     if (e.isBoss) return;
-    const s = e.spawnAnim > 0 ? 1 - e.spawnAnim / 0.35 : 1;
+    const st = e.spawnAnim > 0 ? 1 - e.spawnAnim / 0.35 : 1;
+    const s = e.spawnAnim > 0 ? (FX.reducedMotion ? st : easeOutBack(st)) : 1;
     ctx.save();
     ctx.translate(e.x, e.y);
     ctx.scale(s, s);
