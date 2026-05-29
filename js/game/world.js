@@ -242,6 +242,7 @@ export class World {
     p.flash = Math.max(0, p.flash - dt * 4);
     p.recoil = Math.max(0, p.recoil - dt * 55);
     p.readyPulse = Math.max(0, p.readyPulse - dt * 3);
+    if (p.hp > p.maxHp * 0.4) p.lowWarned = false; // re-arm the danger cue once healed back up
     const wasMoving = p.moving;
     if (p.iframes > 0) p.iframes -= dt;
     if (p.invuln > 0) p.invuln -= dt;
@@ -956,6 +957,7 @@ export class World {
     addTrauma(0.4); screenFlash(0.3, '255,84,112'); hitStop(0.05);
     if (navigator.vibrate && window.__haptics !== false) navigator.vibrate(40);
     burst(p.x, p.y, 10, { color: '#ff5470', speed: 160, life: 0.4, r: 3 });
+    if (p.hp > 0 && p.hp <= p.maxHp * 0.3 && !p.lowWarned) { p.lowWarned = true; sfx.danger(); }
     if (p.hp <= 0) { p.hp = 0; this.die(); }
   }
 

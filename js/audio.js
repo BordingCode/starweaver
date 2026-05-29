@@ -119,6 +119,8 @@ export const sfx = {
   charge() { tone(300, 0.5, { type: 'sine', gain: 0.045, slideTo: 720 }); },
   // weighty, faintly ominous seal for forging a Pact
   pact() { duck(0.6, 0.55); tone(140, 0.55, { type: 'sawtooth', gain: 0.16, slideTo: 90 }); tone(420, 0.5, { type: 'sine', gain: 0.08, delay: 0.05, slideTo: 580 }); noise(0.3, { gain: 0.08, type: 'bandpass', freq: 1400, q: 1.2 }); },
+  // low ominous one-shot when health first goes critical (pairs with the danger vignette)
+  danger() { duck(0.45, 0.5); tone(150, 0.6, { type: 'sine', gain: 0.17, slideTo: 88 }); tone(151, 0.55, { type: 'sawtooth', gain: 0.05, slideTo: 90 }); },
   // bright ascending sparkle when the score multiplier steps up (higher tier = higher pitch)
   combo(tier = 1) { const b = 523 * Math.pow(1.06, Math.min(tier, 12)); tone(b, 0.18, { type: 'triangle', gain: 0.12, slideTo: b * 1.5 }); tone(b * 1.5, 0.16, { type: 'sine', gain: 0.07, delay: 0.05 }); },
   // short stinger when a boss escalates to a new phase
