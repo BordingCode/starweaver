@@ -78,7 +78,7 @@ export class World {
 
   spawnEnemy(type, x, y, baseX, baseY, mode) {
     const def = ENEMIES[type];
-    if (!def) { console.warn('spawnEnemy: unknown type', JSON.stringify(type)); return; }
+    if (!def) return; // safety: ignore unknown types rather than crash
     const hpScale = 1 + this.wave * 0.12;
     this.enemies.spawn((e) => {
       e.type = type; e.def = def;
