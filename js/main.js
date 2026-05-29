@@ -45,7 +45,7 @@ function el(tag, cls, html) { const n = document.createElement(tag); if (cls) n.
 function clearApp() { app.replaceChildren(); }
 
 // ---------------- HUD ----------------
-let hud = null, hpFill = null, shFill = null, scoreEl = null, comboEl = null, waveEl = null, dock = null, spellBtns = [], muteBtn = null, pauseBtn = null, toastEl = null, joyEl = null;
+let hud = null, hpFill = null, shFill = null, scoreEl = null, comboEl = null, waveEl = null, dock = null, spellBtns = [], muteBtn = null, pauseBtn = null, toastEl = null, joyEl = null, xpFill = null;
 function buildHUD() {
   removeHUD();
   hud = el('div', 'hud');
@@ -55,7 +55,8 @@ function buildHUD() {
   hpFill = el('div', 'hp-fill');
   shFill = el('div', 'shield-fill'); shFill.style.position = 'absolute'; shFill.style.top = '0'; shFill.style.left = '0';
   bar.style.position = 'relative'; bar.append(hpFill);
-  hpWrap.append(bar);
+  const xpBar = el('div', 'xp-bar'); xpFill = el('div', 'xp-fill'); xpBar.append(xpFill);
+  hpWrap.append(bar, xpBar);
   waveEl = el('div', 'hud-wave', '');
   top.append(hpWrap, waveEl);
   scoreEl = el('div', 'hud-score', '0');
@@ -125,7 +126,8 @@ function drawHUD() {
   if (w.combo >= 2) { comboEl.classList.add('on'); comboEl.textContent = `COMBO ×${w.combo}  ·  ${w.mult.toFixed(1)}×`; }
   else comboEl.classList.remove('on');
   const def = w.waves[w.wave];
-  waveEl.textContent = def ? def.label : '';
+  waveEl.textContent = (def ? def.label : '') + (w.level ? `  ·  LV ${w.level}` : '');
+  if (xpFill) xpFill.style.width = Math.max(0, Math.min(1, w.xp / w.xpNext)) * 100 + '%';
   // visible joystick: ring at the touch anchor, knob at the (clamped) drag offset
   if (joyEl) {
     if (input.active) {
