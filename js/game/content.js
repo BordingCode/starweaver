@@ -167,7 +167,7 @@ export const RARITY_WEIGHT = { common: 100, rare: 52, epic: 24 };
 // data + a behaviour flag read at an existing world hook — no new enemy code.
 // `exclude` lists enemy types this affix must never roll on (avoids silliness/explosions).
 export const AFFIXES = {
-  armored:   { name: 'Armored',   tint: '#cfd8ff', glyph: 'shield',  dmgTaken: 0.55 },                 // damageEnemy: takes 45% less
+  armored:   { name: 'Armored',   tint: '#cfd8ff', glyph: 'shield',  dmgTaken: 0.55, exclude: ['shielded'] }, // damageEnemy: takes 45% less (not on the already-defensive Bulwark)
   swift:     { name: 'Swift',     tint: '#ffe49a', glyph: 'firerate', descendMult: 1.55, fireMult: 0.62 }, // stepEnemies: faster descent & shooting
   volatile:  { name: 'Volatile',  tint: '#ff9f43', glyph: 'burn',     detonate: 10 },                  // killEnemy: bursts a ring of bullets
   vampiric:  { name: 'Vampiric',  tint: '#5dffb0', glyph: 'lifesteal',heal: 0.05 },                    // stepEnemies: regenerates HP
@@ -175,3 +175,25 @@ export const AFFIXES = {
   splitting: { name: 'Splitting', tint: '#ffd166', glyph: 'multishot',forceSplit: 'mini', exclude: ['mini', 'splitter'] }, // killEnemy: spawns minis
 };
 export const AFFIX_KEYS = Object.keys(AFFIXES);
+
+// ---------------- PACTS (curse / blessing gamble) ----------------
+// Offered when an Elite wave is cleared. Each pact pairs a permanent run-curse
+// with a permanent run-boon. apply(w) mutates the world / its player. Declining
+// is always an option (see main.js) and instead gives a normal upgrade pick.
+export const PACTS = [
+  { id: 'bloodlust', name: 'Pact of Bloodlust', icon: 'damage',
+    curse: 'The swarm fires 25% faster.', boon: '+35% bullet damage.',
+    apply: (w) => { w.enemyFireMult *= 0.75; w.player.bulletDmg *= 1.35; } },
+  { id: 'frenzy', name: 'Pact of Frenzy', icon: 'critdmg',
+    curse: 'More enemies become Champions.', boon: 'Gain a random Epic power now.',
+    apply: (w) => { w.affixFracBonus += 0.25; w.affixNBonus += 1; w._pactGrant = w.grantRandomEpic(); } },
+  { id: 'greed', name: 'Pact of Greed', icon: 'spellpow',
+    curse: 'Half as many pickups drop.', boon: '+50% Stardust this run, heal to full.',
+    apply: (w) => { w.pickupMult *= 0.5; w.dustMult *= 1.5; w.player.hp = w.player.maxHp; } },
+  { id: 'glass', name: 'Pact of Glass', icon: 'overcharge',
+    curse: 'Max HP cut by 30%.', boon: '+25% fire rate and +20% crit chance.',
+    apply: (w) => { const p = w.player; p.maxHp = Math.max(30, Math.round(p.maxHp * 0.7)); p.hp = Math.min(p.hp, p.maxHp); p.fireRate *= 1.25; p.crit += 0.2; } },
+  { id: 'storm', name: 'Pact of the Storm', icon: 'chainhit',
+    curse: 'Champions carry an extra affix.', boon: '+50% spell power, -25% spell cooldowns.',
+    apply: (w) => { w.affixNBonus += 1; w.player.spellPower *= 1.5; w.player.spellCdMult *= 0.75; } },
+];

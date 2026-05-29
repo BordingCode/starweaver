@@ -3,7 +3,7 @@ import { Pool } from '../engine/pool.js';
 import { TAU, clamp, dist, dist2, angle, hit } from '../engine/vec.js';
 import { FX, burst, shockwave, floatText, addTrauma, hitStop, screenFlash } from '../engine/fx.js';
 import { sfx } from '../audio.js';
-import { ENEMIES, SPELLS, AFFIXES, AFFIX_KEYS, buildWaves } from './content.js';
+import { ENEMIES, SPELLS, AFFIXES, AFFIX_KEYS, UPGRADES, buildWaves } from './content.js';
 import { makePlayer } from './player.js';
 
 const MOVE_DEADZONE = 1.6;   // world units of pointer move below which we count as "still"
@@ -36,6 +36,23 @@ export class World {
     this.onWaveClear = null;   // set by main: callback to open upgrade screen
     this.onGameOver = null;
     this.bgShift = 0;
+    // Pact (curse/blessing) run-modifiers — neutral until a pact is taken
+    this.enemyFireMult = 1;    // <1 = enemies fire faster
+    this.affixFracBonus = 0;   // more of the swarm becomes champions
+    this.affixNBonus = 0;      // champions carry more affixes
+    this.pickupMult = 1;       // scales drop chance
+    this.dustMult = 1;         // scales end-of-run Stardust
+    this.pacts = [];           // ids of pacts taken (for the run summary)
+  }
+
+  // grant a random not-maxed epic upgrade immediately (used by Pact boons)
+  grantRandomEpic() {
+    const counts = this.upCounts || (this.upCounts = {});
+    const pool = UPGRADES.filter((u) => u.rarity === 'epic' && (counts[u.id] || 0) < u.max);
+    if (!pool.length) { this.player.bulletDmg *= 1.15; return 'Hardpoint'; } // fallback if all maxed
+    const u = pool[Math.floor(this.rng() * pool.length)];
+    this.applyUpgrade(u); counts[u.id] = (counts[u.id] || 0) + 1;
+    return u.name;
   }
 
   // -------- wave lifecycle --------
@@ -52,8 +69,9 @@ export class World {
     // Champion affixes: Elite waves stamp 1 on every enemy; endless waves stamp
     // a scaling number on a fraction of them (this is what makes endless escalate
     // by *new behaviour* rather than pure HP inflation).
-    const aN = def.elite ? 1 : (def.affixN || 0);
-    const aFrac = def.elite ? 1 : (def.affixFrac || 0);
+    const baseN = def.elite ? 1 : (def.affixN || 0);
+    const aN = baseN > 0 ? Math.min(3, baseN + this.affixNBonus) : 0;
+    const aFrac = def.elite ? 1 : (def.affixFrac ? Math.min(0.85, def.affixFrac + this.affixFracBonus) : 0);
     let order = 0;
     for (const g of def.groups) {
       const pts = layout(g, this.rng);
@@ -99,7 +117,7 @@ export class World {
       e.score = def.score; e.contact = def.contact || 8;
       e.mode = mode || 'formation';
       e.sinePhase = this.rng() * TAU;
-      e.fireMult = 1;
+      e.fireMult = this.enemyFireMult || 1;   // pact curse can make the whole swarm fire faster
       e.fireT = def.fireEvery ? def.fireEvery[0] + this.rng() * (def.fireEvery[1] - def.fireEvery[0]) : 999;
       e.spawnAnim = 0.35;
       e.diveT = 0.5 + this.rng() * 1.5;
@@ -110,6 +128,7 @@ export class World {
       // affix defaults (reset every spawn since the pool reuses objects)
       e.affixes = null; e.dmgTaken = 1; e.heal = 0; e.reflect = 0; e.detonate = 0; e.forceSplit = null;
       if (affixes && affixes.length) this.applyAffixes(e, affixes);
+      e.fireT *= e.fireMult; // fold Swift + any fire-curse into the first shot too
     });
   }
 
@@ -125,7 +144,6 @@ export class World {
       if (a.detonate) e.detonate = Math.max(e.detonate, a.detonate);
       if (a.forceSplit) e.forceSplit = a.forceSplit;
     }
-    e.fireT *= e.fireMult;              // first shot also comes sooner for Swift
     e.score = Math.round(e.score * (1 + keys.length)); // richer reward for a champion
   }
 
@@ -783,6 +801,7 @@ export class World {
       const tanky = e.maxHp >= 14 || big;
       let chance = big ? 1 : tanky ? 0.35 : 0.10;
       if (e.affixes && e.affixes.length) chance = Math.min(1, chance + 0.25 * e.affixes.length); // champions reward you
+      if (!big) chance *= this.pickupMult; // pact curses can choke the drops
       if (this.rng() < chance) {
         const wantHeal = p.hp < p.maxHp * 0.85 || p.maxShield === 0;
         const kind = big ? 'heal' : (wantHeal ? 'heal' : (this.rng() < 0.5 && p.maxShield > 0 ? 'shield' : 'heal'));

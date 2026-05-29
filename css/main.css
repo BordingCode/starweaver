@@ -223,6 +223,16 @@ html, body {
 .arcana-opt.sel .ic { color: var(--cyan); }
 .arcana-desc { color: var(--muted); font-size:12px; max-width:300px; line-height:1.45; min-height:2.6em; }
 
+/* ---------- Pact cards (curse/blessing gamble) ---------- */
+.title-tag.danger { color: var(--red); }
+.pact-card { box-shadow: inset 0 0 0 1px rgba(255,84,112,.35), 0 0 18px rgba(157,107,255,.12); }
+.pact-boon, .pact-curse { display:flex; align-items:center; gap:7px; font-size:13px; line-height:1.35; margin-top:5px; }
+.pact-boon { color: var(--green); }
+.pact-curse { color: var(--red); }
+.pact-boon .ic, .pact-curse .ic { width:14px; height:14px; flex:0 0 auto; }
+.pact-boon .ic { color: var(--green); }
+.pact-curse .ic { color: var(--red); }
+
 @media (prefers-reduced-motion: reduce) {
   .card, .splash-mark, .toast.show { animation: none !important; }
 }

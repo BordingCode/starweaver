@@ -5,7 +5,7 @@ import { Input } from './engine/input.js';
 import { FX, updateFX, clearFX } from './engine/fx.js';
 import { World } from './game/world.js';
 import { drawWorld } from './game/render.js';
-import { UPGRADES, SPELLS, RARITY_WEIGHT } from './game/content.js';
+import { UPGRADES, SPELLS, RARITY_WEIGHT, PACTS } from './game/content.js';
 import { initAudio, resumeAudio, setMuted, isMuted, sfx, startMusic, stopMusic, setMusicIntensity, setSfx } from './audio.js';
 import { iconSVG } from './icons.js';
 import { SHOP, costOf, dustEarned, applyMeta } from './game/meta.js';
@@ -140,7 +140,9 @@ function startRun() {
 function onWaveClear() {
   Game.screen = 'upgrade';
   setMusicIntensity(0.2);
-  showUpgrade();
+  const cleared = Game.world.waves[Game.world.wave];
+  if (cleared && cleared.elite) showPacts();
+  else showUpgrade();
 }
 
 function resumeAfterUpgrade() {
@@ -176,7 +178,7 @@ function onGameOver(won) {
   const w = Game.world;
   if (w.score > Game.meta.best) Game.meta.best = w.score;
   if (won) Game.meta.wins++;
-  const earned = dustEarned(w.score, w.wave, won, Game.meta.upg || {});
+  const earned = Math.round(dustEarned(w.score, w.wave, won, Game.meta.upg || {}) * (w.dustMult || 1));
   Game.meta.dust = (Game.meta.dust || 0) + earned;
   w.dustEarned = earned;
   saveMeta();
@@ -304,6 +306,51 @@ function weightedPick(rng = Math.random) {
     chosen.push(bag.splice(idx, 1)[0]);
   }
   return chosen;
+}
+
+// Elite reward: gamble a curse for a boon, or hold steady for a normal pick.
+function showPacts() {
+  sfx.levelup();
+  clearApp();
+  const w = Game.world;
+  const s = el('div', 'screen');
+  s.append(el('div', 'title-tag danger', 'the swarm grows restless'));
+  s.append(el('div', 'pick-title', 'Forge a Pact'));
+  const cards = el('div', 'cards');
+  // offer 2 distinct random pacts not already taken (fall back to any if exhausted)
+  let avail = PACTS.filter((p) => !w.pacts.includes(p.id));
+  if (avail.length < 2) avail = PACTS.slice();
+  const picks = avail.slice();
+  for (let i = picks.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [picks[i], picks[j]] = [picks[j], picks[i]]; }
+  picks.slice(0, 2).forEach((pact) => {
+    const c = el('div', 'card pact-card');
+    c.append(
+      el('div', 'card-icon', iconSVG(pact.icon) || '✦'),
+      (() => { const b = el('div', 'card-body');
+        b.append(
+          el('div', 'card-name', pact.name),
+          el('div', 'pact-boon', `${iconSVG('spellpow') || ''}<span>${pact.boon}</span>`),
+          el('div', 'pact-curse', `${iconSVG('critdmg') || ''}<span>${pact.curse}</span>`),
+        );
+        return b; })(),
+    );
+    c.addEventListener('click', () => {
+      resumeAudio(); sfx.pickup();
+      w._pactGrant = null;
+      pact.apply(w); w.pacts.push(pact.id);
+      buildHUD();
+      const extra = w._pactGrant ? `  ·  ${w._pactGrant}` : '';
+      toast(`PACT SEALED${extra}`);
+      resumeAfterUpgrade();
+    });
+    cards.append(c);
+  });
+  s.append(cards);
+  const decline = el('button', 'btn ghost', 'Hold Steady — take a power instead');
+  decline.addEventListener('click', () => { resumeAudio(); sfx.dash(); showUpgrade(); });
+  s.append(decline);
+  app.append(s);
+  syncDebug();
 }
 
 function showUpgrade() {
