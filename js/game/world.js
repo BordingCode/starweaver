@@ -26,6 +26,7 @@ export class World {
     this.formPhase = 0; this.formDir = 1;
     this.waveClearT = 0;
     this.boss = null;
+    this.endless = false;
     this.time = 0;
     this.shotsToCredit = 0;
     this.targetX = this.player.x; this.targetY = this.player.y;
@@ -38,7 +39,9 @@ export class World {
   startWave(i) {
     this.wave = i;
     this.state = 'fighting';
+    this.over = false;
     this.spawnQueue.length = 0;
+    if (i >= this.waves.length) this.waves[i] = this.genWave(i); // endless: procedural
     const def = this.waves[i];
     if (!def) { this.win(); return; }
     if (def.boss) { this.spawnBoss(); return; }
@@ -52,6 +55,22 @@ export class World {
       }
     }
     this.elite = !!def.elite;
+  }
+
+  // Procedural escalating wave for endless mode (wave index >= scripted length).
+  genWave(i) {
+    const n = i - this.waves.length + 1;          // endless wave number (1+)
+    if (n % 5 === 0) return { label: 'BOSS ' + (1 + n / 5), boss: true, groups: [] };
+    const pool = ['grunt', 'drone', 'weaver', 'bomber', 'shielded', 'splitter', 'diver'];
+    const forms = { grunt: 'grid', drone: 'grid', weaver: 'arc', bomber: 'sides', shielded: 'arc', splitter: 'grid', diver: 'stream' };
+    const groups = [];
+    const picks = 2 + (n % 3 === 0 ? 1 : 0);
+    for (let k = 0; k < picks; k++) {
+      const type = pool[Math.floor(this.rng() * pool.length)];
+      const count = type === 'shielded' || type === 'bomber' ? 2 + Math.floor(n / 4) : 4 + Math.floor(n / 2);
+      groups.push({ type, count: Math.min(12, count), formation: forms[type], delay: 0.9 });
+    }
+    return { label: 'WAVE ' + (this.waves.length - 1 + n), groups, endlessWave: true };
   }
 
   spawnEnemy(type, x, y, baseX, baseY, mode) {
@@ -114,7 +133,8 @@ export class World {
     if (this.state === 'cleared') {
       this.waveClearT -= dt;
       if (this.waveClearT <= 0) {
-        if (this.waves[this.wave] && this.waves[this.wave].boss) { this.win(); }
+        const def = this.waves[this.wave];
+        if (def && def.boss && !this.endless) { this.win(); }
         else if (this.onWaveClear) this.onWaveClear();
       }
     }

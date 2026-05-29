@@ -30,7 +30,26 @@ export function drawWorld(ctx, w, view, alpha) {
   drawFX(ctx);
 
   ctx.restore();
+  drawVignette(ctx, w);
   drawFlash(ctx, view);
+}
+
+function drawVignette(ctx, w) {
+  // subtle constant edge darkening for focus, plus a red danger pulse at low HP
+  const g = ctx.createRadialGradient(WORLD_W / 2, WORLD_H / 2, WORLD_H * 0.35, WORLD_W / 2, WORLD_H / 2, WORLD_H * 0.72);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.45)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+  if (!w || w.over) return;
+  const frac = w.player.hp / w.player.maxHp;
+  if (frac < 0.35) {
+    const pulse = 0.18 + Math.sin(performance.now() / 180) * 0.1;
+    const a = (0.35 - frac) / 0.35 * pulse;
+    const rg = ctx.createRadialGradient(WORLD_W / 2, WORLD_H / 2, WORLD_H * 0.25, WORLD_W / 2, WORLD_H / 2, WORLD_H * 0.7);
+    rg.addColorStop(0, 'rgba(255,40,70,0)');
+    rg.addColorStop(1, `rgba(255,40,70,${a})`);
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+  }
 }
 
 function drawBackground(ctx, w) {

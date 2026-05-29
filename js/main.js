@@ -104,6 +104,10 @@ function startRun() {
   buildHUD();
   loop.start();
   toast(Game.world.waves[0].label);
+  if (Game.meta.runs <= 1) {
+    setTimeout(() => { if (Game.screen === 'playing') toast('DRAG TO MOVE'); }, 1900);
+    setTimeout(() => { if (Game.screen === 'playing') toast('STOP TO FIRE'); }, 3700);
+  }
   syncDebug();
 }
 
@@ -122,6 +126,20 @@ function resumeAfterUpgrade() {
   w.startWave(next);
   const def = w.waves[next];
   if (def) toast(def.boss ? 'BOSS' : def.elite ? 'ELITE WAVE' : def.label);
+}
+
+function resumeEndless() {
+  const w = Game.world;
+  w.endless = true; w.over = false; w.won = false;
+  Game.screen = 'playing';
+  clearApp();
+  buildHUD();
+  resumeAudio(); startMusic(); setMusicIntensity(1);
+  w.startWave(w.wave + 1);
+  const def = w.waves[w.wave];
+  toast(def && def.boss ? 'BOSS' : (def ? def.label : 'ENDLESS'));
+  loop.start();
+  syncDebug();
 }
 
 function onGameOver(won) {
@@ -222,7 +240,13 @@ function showGameOver(won) {
   s.append(el('div', 'stat-line', won ? 'You shattered the Weaver Queen.' : `You fell on ${w.waves[w.wave] ? w.waves[w.wave].label : 'the swarm'}.`));
   s.append(el('div', 'stat-big', String(w.score)));
   s.append(el('div', 'stat-line', `Best: ${Game.meta.best}`));
-  const again = el('button', 'btn', '↻ Play Again');
+  if (won) {
+    const cont = el('button', 'btn', '▸ Endless');
+    cont.addEventListener('click', () => resumeEndless());
+    s.append(cont);
+    s.append(el('div', 'hint', 'The swarm regroups, endlessly. Keep your build and chase a high score.'));
+  }
+  const again = el('button', 'btn' + (won ? ' ghost' : ''), '↻ Play Again');
   again.addEventListener('click', () => { resumeAudio(); startRun(); });
   const menu = el('button', 'btn ghost', 'Menu');
   menu.addEventListener('click', () => { stopMusic(); showTitle(); });
