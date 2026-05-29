@@ -159,8 +159,9 @@ html, body {
   background: conic-gradient(rgba(5,3,15,.78) var(--cd, 0deg), rgba(0,0,0,0) 0deg);
   pointer-events:none;
 }
-.spell-btn.ready { box-shadow: inset 0 0 0 1.5px var(--cyan), 0 0 22px rgba(52,245,255,.4); }
+.spell-btn.ready { box-shadow: inset 0 0 0 1.5px var(--cyan), 0 0 22px rgba(52,245,255,.4); animation: spellReady .42s ease; }
 .spell-btn.dash.ready { box-shadow: inset 0 0 0 1.5px var(--gold), 0 0 22px rgba(255,209,102,.4); }
+@keyframes spellReady { 0%{ transform: scale(1); } 38%{ transform: scale(1.13); } 100%{ transform: scale(1); } }
 .spell-key { position:absolute; bottom:-16px; left:0; right:0; text-align:center; font-size:9px; letter-spacing:.12em; color:var(--muted); text-transform:uppercase; }
 
 .toast { position: fixed; top: 40%; left:0; right:0; text-align:center; z-index:6; pointer-events:none;
@@ -274,7 +275,7 @@ html, body {
 .pact-curse .ic { color: var(--red); }
 
 @media (prefers-reduced-motion: reduce) {
-  .card, .splash-mark, .toast.show, .boss-banner.show .bb-name, .boss-banner.show .bb-warn, .boss-banner.out, .title-logo { animation: none !important; }
+  .card, .splash-mark, .toast.show, .boss-banner.show .bb-name, .boss-banner.show .bb-warn, .boss-banner.out, .title-logo, .spell-btn.ready { animation: none !important; }
 }
 /* in-game "Reduce motion" toggle (set on <body> by applySettings) mirrors the OS setting */
 body.reduce-motion .card,
@@ -283,4 +284,5 @@ body.reduce-motion .toast.show,
 body.reduce-motion .boss-banner.show .bb-name,
 body.reduce-motion .boss-banner.show .bb-warn,
 body.reduce-motion .boss-banner.out,
-body.reduce-motion .title-logo { animation: none !important; }
+body.reduce-motion .title-logo,
+body.reduce-motion .spell-btn.ready { animation: none !important; }
