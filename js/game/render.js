@@ -341,7 +341,7 @@ function drawBoss(ctx, w) {
   const main = warden ? '#6b6bff' : chrono ? '#ffd14d' : '#ff4d9d';
   const haloRGB = warden ? '107,107,255' : chrono ? '255,209,77' : '255,77,157';
   const s = e.spawnAnim > 0 ? 0.6 + 0.4 * (1 - e.spawnAnim / 1.2) : 1;
-  const punch = e.flash > 0 ? 1 + Math.min(e.flash, 1) * 0.05 : 1; // subtle hit-punch (boss is big)
+  const punch = (e.flash > 0 ? 1 + Math.min(e.flash, 1) * 0.05 : 1) * (1 + (e.tele || 0) * 0.04); // hit-punch + telegraph inhale
   ctx.save();
   ctx.translate(e.x, e.y);
   ctx.scale(s * punch, s * punch);
@@ -351,7 +351,9 @@ function drawBoss(ctx, w) {
   g.addColorStop(0, `rgba(${haloRGB},0.5)`); g.addColorStop(1, `rgba(${haloRGB},0)`);
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, e.r * 1.6, 0, TAU); ctx.fill();
   ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = e.flash > 0 ? '#fff' : main;
+  // each phase recolours the body toward an angrier hue — distinct "acts" with no new art
+  const phaseTint = e.phase === 0 ? main : e.phase === 1 ? (warden ? '#8a8aff' : chrono ? '#ffe27a' : '#ff6fb3') : '#ff3a6e';
+  ctx.fillStyle = e.flash > 0 ? '#fff' : (e.invuln > 0 ? '#cdd6ff' : phaseTint);
   ctx.shadowColor = main; ctx.shadowBlur = 18;
   if (warden) {
     // heavy fractured crown — 6 broad obsidian shards, slow
@@ -404,14 +406,39 @@ function drawBoss(ctx, w) {
   ctx.fillStyle = tele > 0.5 ? '#fff' : (warden ? '#9fb0ff' : chrono ? '#ffe14d' : e.phase === 2 ? '#ffd166' : '#34f5ff');
   ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8 + tele * 22;
   ctx.beginPath(); ctx.arc(0, 0, coreR, 0, TAU); ctx.fill();
-  ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
+  // vulnerable window — bright white pulsing ring (dodge→punish payoff)
+  if (e.vuln > 0) {
+    ctx.globalAlpha = FX.reducedMotion ? 0.5 : 0.4 + 0.3 * Math.sin(performance.now() / 70);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.shadowColor = '#fff'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(0, 0, e.r * 1.2, 0, TAU); ctx.stroke();
+  }
+  // enrage rim in the final third
+  if (e.enrage > 0) {
+    ctx.globalAlpha = (FX.reducedMotion ? 0.45 : 0.3 + 0.3 * Math.sin(performance.now() / 110)) * e.enrage;
+    ctx.strokeStyle = '#ff3030'; ctx.lineWidth = 3; ctx.shadowColor = '#ff3030'; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(0, 0, e.r * 1.33, 0, TAU); ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
   ctx.restore();
-  // boss hp bar at top
+  // ---- boss HP bar ----
   const bw = WORLD_W - 80, bx = 40, by = 70;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(bx, by, bw, 9);
-  ctx.fillStyle = main; ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 9);
+  // chip-damage ghost: recent damage drains behind the real fill
+  ctx.fillStyle = 'rgba(255,255,255,0.26)'; ctx.fillRect(bx, by, bw * Math.max(0, e.hpShown / e.maxHp), 9);
+  // real fill: armored (blue) / enraged (pulsing red) / phase colour
+  const enraged = e.phase >= 2;
+  let barCol = main;
+  if (e.invuln > 0) barCol = '#9fb0ff';
+  else if (enraged) barCol = (!FX.reducedMotion && Math.sin(w.time * 9) > 0) ? '#ff3030' : '#ff5470';
+  ctx.fillStyle = barCol; ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 9);
+  // phase pips at the 1/3 and 2/3 breakpoints
+  ctx.fillStyle = 'rgba(5,3,15,0.75)';
+  ctx.fillRect(bx + bw * 0.34 - 1, by, 2, 9); ctx.fillRect(bx + bw * 0.67 - 1, by, 2, 9);
+  // name + state cue
   ctx.fillStyle = '#eaf2ff'; ctx.font = "700 12px Orbitron, sans-serif"; ctx.textAlign = 'center';
   ctx.fillText(e.def.name, WORLD_W / 2, by - 6);
+  if (e.invuln > 0) { ctx.fillStyle = '#9fb0ff'; ctx.fillText('— ARMORED —', WORLD_W / 2, by - 19); }
+  else if (enraged) { ctx.fillStyle = '#ff5470'; ctx.fillText('ENRAGED', WORLD_W / 2, by - 19); }
 }
 
 function drawFlash(ctx, view) {

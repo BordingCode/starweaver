@@ -175,6 +175,9 @@ export class World {
       e.r = b.r; e.maxHp = hp; e.hp = hp; e.score = 1000; e.contact = 22;
       e.mode = 'boss'; e.isBoss = true; e.flash = 0; e.frozen = 0; e.burnT = 0; e.burnDmg = 0;
       e.spawnAnim = 1.2; e.phase = 0; e.lastPhase = 0; e.atkT = 2.4; e.atkMode = 0; e.spin = 0; e.dir = 1; e.shield = 0; e.tele = 0; e.pullT = 0;
+      // set-piece state: scripted phase transition, armor window, low-HP enrage,
+      // post-attack vulnerable window, chip-damage bar, multi-stage death
+      e.transT = 0; e.invuln = 0; e.enrage = 0; e.vuln = 0; e.deathT = 0; e.hpShown = hp; e.mainCol = b.color;
     });
   }
 
@@ -603,6 +606,23 @@ export class World {
   // -------- boss --------
   stepBoss(e, dt) {
     const p = this.player;
+    const main = e.mainCol || '#ff4d9d';
+    e.hpShown += (e.hp - e.hpShown) * Math.min(1, dt * 4); // chip-damage lag bar
+    if (e.vuln > 0) e.vuln -= dt;
+
+    // multi-stage death cinematic: a chain of pops, then the final blast (killEnemy)
+    if (e.deathT > 0) {
+      e.deathT -= dt; e.spin += dt * 10; e.tele = 0;
+      if (Math.random() < dt * 7) {
+        const ang = Math.random() * TAU, rr = e.r * (0.3 + Math.random() * 0.9);
+        burst(e.x + Math.cos(ang) * rr, e.y + Math.sin(ang) * rr, 8, { color: main, speed: 220, life: 0.6, r: 3 });
+        shockwave(e.x + Math.cos(ang) * rr, e.y + Math.sin(ang) * rr, { color: '#fff', max: 70, dur: 0.4, width: 3 });
+        addTrauma(0.18);
+      }
+      if (e.deathT <= 0) { e.invuln = 0; this.killEnemy(e); } // existing big-boom finale
+      return;
+    }
+
     if (e.spawnAnim > 0) { e.y += (e.baseY - e.y) * Math.min(1, dt * 2); return; }
     const warden = e.bossId === 'warden';
     // movement: Queen sways briskly; Grave Warden hovers heavily
@@ -617,10 +637,29 @@ export class World {
     }
     const chrono = e.bossId === 'chrono';
     e.spin += dt * (warden ? 0.8 : chrono ? 1.2 : 2);
-    // phase by hp
+    // phase by hp + enrage intensity (only in the final third)
     const frac = e.hp / e.maxHp;
-    e.phase = frac > 0.66 ? 0 : frac > 0.33 ? 1 : 2;
-    if (e.phase !== e.lastPhase) { e.lastPhase = e.phase; sfx.phase(); screenFlash(0.22, '255,255,255'); addTrauma(0.3); } // escalation stinger
+    const newPhase = frac > 0.66 ? 0 : frac > 0.33 ? 1 : 2;
+    e.enrage = clamp((0.33 - frac) / 0.33, 0, 1);
+    // a felt phase-transition: ARMORED beat, screen sweep, dramatic spin-up, escalation cue
+    if (newPhase !== e.lastPhase && e.transT <= 0) {
+      e.lastPhase = newPhase; e.phase = newPhase;
+      e.transT = 1.1; e.invuln = 1.1;
+      this.eBullets.clear(); // sweep the screen — relief beat + readability reset
+      sfx.phase(); screenFlash(0.35, '255,255,255'); addTrauma(0.5);
+      shockwave(e.x, e.y, { color: main, max: 300, dur: 0.8, width: 7 });
+      burst(e.x, e.y, 40, { color: main, speed: 300, life: 0.8, r: 4 });
+      floatText(e.x, e.y - e.r - 18, newPhase >= 2 ? 'ENRAGED' : 'PHASE ' + (newPhase + 1), { color: main, size: 24, crit: true });
+    }
+    e.phase = newPhase;
+    if (e.transT > 0) {
+      e.transT -= dt; if (e.invuln > 0) e.invuln -= dt;
+      e.spin += dt * 6;                                  // armored spin-up
+      e.y += (e.baseY - e.y) * Math.min(1, dt * 3);      // settle to centre
+      e.x += (WORLD_W / 2 - e.x) * Math.min(1, dt * 3);
+      e.tele = 0; e.atkT = 0.6;                          // grace before the new phase opens fire
+      return;                                            // no attacks/pull/contact this frame
+    }
     e.atkT -= dt * (1 + (1 - frac) * 0.5);
     // telegraph charge
     e.tele = clamp(1 - e.atkT / 0.6, 0, 1);
@@ -632,7 +671,9 @@ export class World {
       p.x += Math.cos(a) * 120 * dt; p.y += Math.sin(a) * 120 * dt;
     }
     if (e.atkT <= 0) {
+      const mode = e.atkMode;
       if (warden) this.wardenAttack(e); else if (chrono) this.chronoAttack(e); else this.bossAttack(e);
+      if (mode === 0) e.vuln = 1.2; // after the big radial attack, a brief dodge→punish window
       e.atkMode = (e.atkMode + 1) % 3;
       const base = warden ? 2.6 : chrono ? 2.4 : 2.2;
       e.atkT = base - e.phase * (warden ? 0.4 : 0.5);
@@ -838,8 +879,11 @@ export class World {
   damageEnemy(e, dmg, fx, fy, crit) {
     if (!e.alive) return;
     const p = this.player;
+    // Boss ARMORED during a phase transition / death cinematic — no damage, clear cue
+    if (e.invuln > 0) { e.flash = 0.4; floatText(fx, fy, 'ARMORED', { color: '#9fb0ff', size: 13 }); return; }
     if (e.dmgTaken && e.dmgTaken !== 1) dmg *= e.dmgTaken; // Armored champions shrug off part of the hit
     if (e.affixes && e.affixes.length && p.championDmg > 1) dmg *= p.championDmg; // Giantslayer
+    if (e.isBoss && e.vuln > 0) dmg *= 1.5; // punish the recovery after a big attack
     e.hp -= dmg; e.flash = 1;
     sfx.hit();
     burst(fx, fy, crit ? 7 : 3, { color: crit ? '#ffd166' : '#fff', speed: crit ? 180 : 90, life: 0.3, r: crit ? 3 : 2 });
@@ -847,7 +891,13 @@ export class World {
     if (crit) { addTrauma(0.08); if (p.critLifesteal) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.02); }
     // Cull the Weak: finish low-HP non-boss enemies outright
     if (e.hp > 0 && !e.isBoss && p.execute > 0 && e.hp <= e.maxHp * p.execute) e.hp = 0;
-    if (e.hp <= 0) this.killEnemy(e);
+    if (e.hp <= 0) {
+      if (e.isBoss && e.deathT <= 0) { // start the multi-stage death; killEnemy fires the finale
+        e.hp = 0; e.deathT = 1.3; e.invuln = 99; this.eBullets.clear(); sfx.phase();
+        return;
+      }
+      this.killEnemy(e);
+    }
   }
 
   killEnemy(e, silent) {
