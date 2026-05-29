@@ -196,6 +196,7 @@ function showTitle() {
     el('div', 'title-tag', 'weave · dodge · break the swarm'),
   );
   s.append(el('div', 'dust-line', `${iconSVG('spellpow')}<span>${Game.meta.dust || 0} Stardust</span>`));
+  s.append(loadoutPicker());
   const play = el('button', 'btn', '▶ Play');
   play.addEventListener('click', () => { resumeAudio(); startRun(); });
   s.append(play);
@@ -210,6 +211,31 @@ function showTitle() {
   s.append(el('div', 'hint', 'Drag to fly — your ship floats above your finger. You only <b>shoot while still</b>, so dodge, then stand and unload. Tap the orbs to <b>Blink</b> and cast arcana. Clear a wave, pick a power, repeat.'));
   clearApp(); app.append(s);
   syncDebug();
+}
+
+// Starting-arcana picker: choose which secondary spell you begin every run with.
+function loadoutPicker() {
+  const wrap = el('div', 'arcana-pick');
+  wrap.append(el('div', 'arcana-label', 'Starting Arcana'));
+  const opts = el('div', 'arcana-opts');
+  const desc = el('div', 'arcana-desc', '');
+  const ids = ['nova', 'chain', 'storm'];
+  if (!ids.includes(Game.meta.loadout)) Game.meta.loadout = 'nova';
+  const btns = {};
+  const select = (id) => {
+    Game.meta.loadout = id; saveMeta();
+    ids.forEach((k) => btns[k].classList.toggle('sel', k === id));
+    desc.textContent = SPELLS[id].desc;
+  };
+  ids.forEach((id) => {
+    const def = SPELLS[id];
+    const o = el('div', 'arcana-opt', `${iconSVG(id) || `<span>${def.icon}</span>`}<span class="a-name">${def.name}</span>`);
+    o.addEventListener('click', () => { resumeAudio(); sfx.pickup(); select(id); });
+    btns[id] = o; opts.append(o);
+  });
+  wrap.append(opts, desc);
+  select(Game.meta.loadout);
+  return wrap;
 }
 
 function showHangar() {

@@ -202,6 +202,27 @@ html, body {
 .loadout { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width: 360px; }
 .chip { font-size:12px; padding:6px 12px; border-radius: 20px; background: rgba(255,255,255,.05); box-shadow: inset 0 0 0 1px var(--panel-edge); color: var(--muted); letter-spacing:.04em; }
 
+/* ---------- Starting-arcana picker (title screen) ---------- */
+.arcana-pick { display:flex; flex-direction:column; align-items:center; gap:10px; }
+.arcana-label { color: var(--muted); font-size:11px; letter-spacing:.22em; text-transform:uppercase; }
+.arcana-opts { display:flex; gap:10px; justify-content:center; }
+.arcana-opt {
+  display:flex; flex-direction:column; align-items:center; gap:5px; width:80px;
+  padding:11px 6px 9px; border-radius:14px; cursor:pointer;
+  background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 1px var(--panel-edge);
+  color: var(--muted); transition: transform .08s ease, box-shadow .2s ease, color .2s ease;
+}
+.arcana-opt:active { transform: scale(.94); }
+.arcana-opt .ic { width:26px; height:26px; color: var(--muted); transition: color .2s ease; }
+.arcana-opt .a-name { font-family:'Orbitron',sans-serif; font-weight:700; font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
+.arcana-opt.sel {
+  color: var(--cyan);
+  background: linear-gradient(160deg, rgba(52,245,255,.14), rgba(157,107,255,.12));
+  box-shadow: inset 0 0 0 1px rgba(52,245,255,.55), 0 0 18px rgba(52,245,255,.25);
+}
+.arcana-opt.sel .ic { color: var(--cyan); }
+.arcana-desc { color: var(--muted); font-size:12px; max-width:300px; line-height:1.45; min-height:2.6em; }
+
 @media (prefers-reduced-motion: reduce) {
   .card, .splash-mark, .toast.show { animation: none !important; }
 }
