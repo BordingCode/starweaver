@@ -14,6 +14,9 @@ export function makePlayer() {
     rearShot: false, sideShot: false,
     // elemental
     burn: 0, freeze: 0, chainOnHit: 0,
+    // build-defining flags
+    execute: 0, momentum: false, stillT: 0, glass: false, shatter: false, critLifesteal: false,
+    burstShots: 1, pendingBursts: 0, burstT: 0,
     // defensive / utility
     orbits: 0, orbitDmg: 6, orbitAngle: 0,
     lifesteal: 0,

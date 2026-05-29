@@ -48,7 +48,7 @@ export class World {
     const def = this.waves[i];
     if (!def) { this.win(); return; }
     this.player.invuln = Math.max(this.player.invuln, i === 0 ? 1.4 : 0.7); // grace as a wave begins
-    if (def.boss) { this.spawnBoss(); return; }
+    if (def.boss) { this.spawnBoss(def.bossId || 'queen'); return; }
     let order = 0;
     for (const g of def.groups) {
       const pts = layout(g, this.rng);
@@ -64,15 +64,16 @@ export class World {
   // Procedural escalating wave for endless mode (wave index >= scripted length).
   genWave(i) {
     const n = i - this.waves.length + 1;          // endless wave number (1+)
-    if (n % 5 === 0) return { label: 'BOSS ' + (1 + n / 5), boss: true, groups: [] };
-    const pool = ['grunt', 'drone', 'weaver', 'bomber', 'shielded', 'splitter', 'diver'];
-    const forms = { grunt: 'grid', drone: 'grid', weaver: 'arc', bomber: 'sides', shielded: 'arc', splitter: 'grid', diver: 'stream' };
+    if (n % 5 === 0) { const k = n / 5; return { label: 'BOSS ' + (2 + k), boss: true, bossId: k % 2 ? 'warden' : 'queen', groups: [] }; }
+    const pool = ['grunt', 'drone', 'weaver', 'bomber', 'shielded', 'splitter', 'diver', 'warden', 'seeder'];
+    const forms = { grunt: 'grid', drone: 'grid', weaver: 'arc', bomber: 'sides', shielded: 'arc', splitter: 'grid', diver: 'stream', warden: 'arc', seeder: 'sides' };
     const groups = [];
     const picks = 2 + (n % 3 === 0 ? 1 : 0);
     for (let k = 0; k < picks; k++) {
       const type = pool[Math.floor(this.rng() * pool.length)];
-      const count = type === 'shielded' || type === 'bomber' ? 2 + Math.floor(n / 4) : 4 + Math.floor(n / 2);
-      groups.push({ type, count: Math.min(12, count), formation: forms[type], delay: 0.9 });
+      const heavy = type === 'shielded' || type === 'bomber' || type === 'warden' || type === 'seeder';
+      const count = heavy ? 2 + Math.floor(n / 5) : 4 + Math.floor(n / 2);
+      groups.push({ type, count: Math.min(heavy ? 5 : 12, count), formation: forms[type], delay: 0.9 });
     }
     return { label: 'WAVE ' + (this.waves.length - 1 + n), groups, endlessWave: true };
   }
@@ -98,16 +99,20 @@ export class World {
     });
   }
 
-  spawnBoss() {
+  spawnBoss(bossId = 'queen') {
     sfx.bossWarn();
     this.state = 'fighting';
-    const hp = 900 + this.wave * 40;
+    const warden = bossId === 'warden';
+    const hp = (warden ? 1100 : 900) + this.wave * 30;
     this.boss = this.enemies.spawn((e) => {
-      e.type = 'boss'; e.def = { name: 'THE WEAVER QUEEN', color: '#ff4d9d', contact: 22 };
+      e.type = 'boss'; e.bossId = bossId;
+      e.def = warden
+        ? { name: 'THE GRAVE WARDEN', color: '#6b6bff', contact: 22 }
+        : { name: 'THE WEAVER QUEEN', color: '#ff4d9d', contact: 22 };
       e.x = WORLD_W / 2; e.y = -120; e.baseX = WORLD_W / 2; e.baseY = 170;
-      e.r = 60; e.maxHp = hp; e.hp = hp; e.score = 1000; e.contact = 22;
+      e.r = warden ? 64 : 60; e.maxHp = hp; e.hp = hp; e.score = 1000; e.contact = 22;
       e.mode = 'boss'; e.isBoss = true; e.flash = 0; e.frozen = 0; e.burnT = 0; e.burnDmg = 0;
-      e.spawnAnim = 1.2; e.phase = 0; e.atkT = 2.2; e.atkMode = 0; e.spin = 0; e.dir = 1; e.shield = 0; e.tele = 0;
+      e.spawnAnim = 1.2; e.phase = 0; e.atkT = 2.4; e.atkMode = 0; e.spin = 0; e.dir = 1; e.shield = 0; e.tele = 0; e.pullT = 0;
     });
   }
 
@@ -211,12 +216,24 @@ export class World {
       if (p.shieldDelay <= 0 && p.shield < p.maxShield) p.shield = Math.min(p.maxShield, p.shield + p.shieldRegen * dt);
     }
 
+    // Momentum: standing still ramps damage up to +50% (resets the instant you move)
+    if (p.momentum) {
+      if (!p.moving && p.dashT <= 0) p.stillT += dt; else p.stillT = 0;
+      p.damageMult = 1 + clamp((p.stillT - 0.4) / 1.6, 0, 1) * 0.5;
+    }
+
     // FIRE ONLY WHEN STILL (the Archero tension). Dashing counts as moving.
     p.fireT -= dt;
     const canFire = !p.moving && p.dashT <= 0;
     if (canFire && p.fireT <= 0) {
       this.fire();
       p.fireT = 1 / p.fireRate;
+      if (p.burstShots > 1) { p.pendingBursts = p.burstShots - 1; p.burstT = 0.07; }
+    }
+    // staggered extra volleys (Volley card) — fire even while moving so the burst completes
+    if (p.pendingBursts > 0) {
+      p.burstT -= dt;
+      if (p.burstT <= 0) { this.fire(true); p.pendingBursts -= 1; p.burstT = 0.07; }
     }
 
     // spell cooldowns
@@ -226,9 +243,9 @@ export class World {
     p.orbitAngle += dt * 2.6;
   }
 
-  fire() {
+  fire(quiet) {
     const p = this.player;
-    sfx.shoot();
+    if (!quiet) sfx.shoot();
     const dirs = [];
     const n = p.bulletCount;
     const spread = p.spread;
@@ -389,6 +406,12 @@ export class World {
           e.x += e.lvx * dt * speedMult; e.y += e.lvy * dt * speedMult;
           if (Math.random() < 0.5) burst(e.x, e.y, 1, { color: e.def.color, speed: 20, life: 0.25, r: 2 });
         }
+      } else if (e.def.anchor) {
+        // descend to a hold line, then hang and sway in place (never reaches the floor)
+        const hold = e.def.holdY || 230;
+        if (e.baseY < hold) e.baseY = Math.min(hold, e.baseY + e.descend * dt * speedMult);
+        e.x = e.baseX + Math.sin(this.formPhase + e.sinePhase) * 14;
+        e.y = e.baseY;
       } else {
         // formation / arc / sides: sway + descend
         const swayAmp = e.def.sine ? 46 : 22;
@@ -398,13 +421,18 @@ export class World {
         e.y = e.baseY;
       }
 
-      // reaching the bottom hurts the player and removes the enemy
-      if (e.y > WORLD_H - 70) { this.hurtPlayer(8); this.killEnemy(e, true); return; }
+      // reaching the bottom hurts the player and removes the enemy (anchors never do)
+      if (!e.def.anchor && e.y > WORLD_H - 70) { this.hurtPlayer(8); this.killEnemy(e, true); return; }
 
       // shooting
       if (e.def.fireEvery && e.spawnAnim <= 0) {
         e.fireT -= dt * speedMult;
-        if (e.fireT <= 0) {
+        if (e.def.shoot === 'beam') {
+          // two-stage: lock the player's position 0.7s out (telegraph), then fire there
+          if (!e.locking && e.fireT <= 0.7) { e.locking = true; e.lockX = p.x; e.lockY = p.y; }
+          e.teleP = e.locking ? clamp(1 - e.fireT / 0.7, 0, 1) : 0;
+          if (e.fireT <= 0) { this.fireBeam(e); e.locking = false; e.teleP = 0; e.fireT = e.def.fireEvery[0] + this.rng() * (e.def.fireEvery[1] - e.def.fireEvery[0]); }
+        } else if (e.fireT <= 0) {
           this.enemyShoot(e);
           e.fireT = e.def.fireEvery[0] + this.rng() * (e.def.fireEvery[1] - e.def.fireEvery[0]);
         }
@@ -427,13 +455,31 @@ export class World {
     if (shoot === 'aimed') fire(a);
     else if (shoot === 'double') { fire(a - 0.12); fire(a + 0.12); }
     else if (shoot === 'spread3') { fire(a - 0.26); fire(a); fire(a + 0.26); }
+    else if (shoot === 'mine') this.spawnMine(e);
     else fire(Math.PI / 2);
   }
 
-  spawnEBullet(x, y, a, speed, color) {
+  // Warden: fire a tight 5-bullet cross at the position it locked 0.7s ago (slow + readable)
+  fireBeam(e) {
+    const a = angle(e.x, e.y, e.lockX, e.lockY);
+    const sp = 165;
+    for (const off of [-0.06, -0.03, 0, 0.03, 0.06]) this.spawnEBullet(e.x, e.y + e.r, a + off, sp, '#ff8ad8');
+    sfx.hit();
+  }
+
+  // Seeder: drop a slow proximity orb that pops into a ring
+  spawnMine(e) {
+    this.eBullets.spawn((b) => {
+      b.x = e.x; b.y = e.y + e.r; b.vx = 0; b.vy = 62; b.r = 9; b.dmg = 7;
+      b.color = '#9bff6b'; b.life = 6; b.mine = true; b.fuse = 4.5; b.holdT = 0;
+    });
+  }
+
+  spawnEBullet(x, y, a, speed, color, opts) {
     this.eBullets.spawn((b) => {
       b.x = x; b.y = y; b.vx = Math.cos(a) * speed; b.vy = Math.sin(a) * speed;
-      b.r = 6.5; b.dmg = 6; b.color = color || '#ff5470'; b.life = 5;
+      b.r = (opts && opts.r) || 6.5; b.dmg = (opts && opts.dmg) || 6; b.color = color || '#ff5470'; b.life = (opts && opts.life) || 5;
+      b.mine = false; b.fuse = 0; b.holdT = 0; // clear pooled mine/hold state
     });
   }
 
@@ -441,22 +487,36 @@ export class World {
   stepBoss(e, dt) {
     const p = this.player;
     if (e.spawnAnim > 0) { e.y += (e.baseY - e.y) * Math.min(1, dt * 2); return; }
-    // sway
-    e.x += e.dir * 60 * dt;
-    if (e.x < 90) { e.x = 90; e.dir = 1; } else if (e.x > WORLD_W - 90) { e.x = WORLD_W - 90; e.dir = -1; }
-    e.y = e.baseY + Math.sin(this.time * 1.2) * 20;
-    e.spin += dt * 2;
+    const warden = e.bossId === 'warden';
+    // movement: Queen sways briskly; Grave Warden hovers heavily
+    if (warden) {
+      e.x += e.dir * 26 * dt;
+      if (e.x < 110) { e.x = 110; e.dir = 1; } else if (e.x > WORLD_W - 110) { e.x = WORLD_W - 110; e.dir = -1; }
+      e.y = e.baseY + Math.sin(this.time * 0.8) * 12;
+    } else {
+      e.x += e.dir * 60 * dt;
+      if (e.x < 90) { e.x = 90; e.dir = 1; } else if (e.x > WORLD_W - 90) { e.x = WORLD_W - 90; e.dir = -1; }
+      e.y = e.baseY + Math.sin(this.time * 1.2) * 20;
+    }
+    e.spin += dt * (warden ? 0.8 : 2);
     // phase by hp
     const frac = e.hp / e.maxHp;
     e.phase = frac > 0.66 ? 0 : frac > 0.33 ? 1 : 2;
-    e.atkT -= dt * (1 + (1 - frac) * 0.6);
-    // telegraph: charge the core in the final 0.5s before an attack
-    e.tele = clamp(1 - e.atkT / 0.5, 0, 1);
-    if (e.tele > 0.4 && Math.random() < 0.5) burst(e.x, e.y, 1, { color: '#fff', speed: 60, dir: -Math.PI / 2 + (Math.random() - 0.5), spread: 0.4, life: 0.2, r: 2 });
+    e.atkT -= dt * (1 + (1 - frac) * 0.5);
+    // telegraph charge
+    e.tele = clamp(1 - e.atkT / 0.6, 0, 1);
+    if (e.tele > 0.4 && Math.random() < 0.5) burst(e.x, e.y, 1, { color: warden ? '#cfe' : '#fff', speed: 60, dir: -Math.PI / 2 + (Math.random() - 0.5), spread: 0.4, life: 0.2, r: 2 });
+    // gravity pull (Grave Warden phase 2)
+    if (e.pullT > 0) {
+      e.pullT -= dt;
+      const a = angle(p.x, p.y, e.x, e.y);
+      p.x += Math.cos(a) * 120 * dt; p.y += Math.sin(a) * 120 * dt;
+    }
     if (e.atkT <= 0) {
-      this.bossAttack(e);
+      if (warden) this.wardenAttack(e); else this.bossAttack(e);
       e.atkMode = (e.atkMode + 1) % 3;
-      e.atkT = (e.phase === 2 ? 1.2 : e.phase === 1 ? 1.7 : 2.2);
+      const base = warden ? 2.6 : 2.2;
+      e.atkT = base - e.phase * (warden ? 0.4 : 0.5);
     }
     if (p.iframes <= 0 && p.invuln <= 0 && hit(e.x, e.y, e.r, p.x, p.y, p.r)) this.hurtPlayer(e.contact);
   }
@@ -478,6 +538,42 @@ export class World {
       const arms = 3;
       for (let k = 0; k < arms; k++) {
         for (let i = 0; i < 5; i++) this.spawnEBullet(e.x, e.y, e.spin * 2 + k * (TAU / arms) + i * 0.08, sp - 20, '#9d6bff');
+      }
+    }
+    sfx.hit();
+  }
+
+  // Grave Warden: denial & timing. Walls-with-a-gap / gravity pull+ring / fake-out cross + lance.
+  wardenAttack(e) {
+    const p = this.player;
+    const IND = '#6b6bff';
+    if (e.phase === 0 || (e.phase === 2 && e.atkMode === 0)) {
+      // Tidal wall: a row of bullets across the screen with one ~90px gap
+      const gapX = 60 + this.rng() * (WORLD_W - 120);
+      const step = 44;
+      for (let x = 20; x < WORLD_W - 10; x += step) {
+        if (Math.abs(x - gapX) < 55) continue;
+        this.spawnEBullet(x, 30, Math.PI / 2, 165, IND, { r: 8 });
+      }
+      addTrauma(0.2);
+    } else if (e.phase === 1 && e.atkMode !== 2) {
+      // The Pull: drag the player inward while a slow ring blooms
+      e.pullT = 0.8; screenFlash(0.18, '107,107,255');
+      const n = 16;
+      for (let i = 0; i < n; i++) this.spawnEBullet(e.x, e.y, (i / n) * TAU + e.spin, 120, IND, { r: 7 });
+      addTrauma(0.25);
+    } else if (e.atkMode === 1) {
+      // Aimed triple lance — the only fast attack; punishes standing still
+      const a = angle(e.x, e.y, p.x, p.y);
+      for (const off of [-0.1, 0, 0.1]) this.spawnEBullet(e.x, e.y, a + off, 300, '#cfe6ff', { r: 7 });
+    } else {
+      // Cross-beam fake-out: 4 fat bullets on the axes that hang, then resume
+      for (let i = 0; i < 4; i++) {
+        const ang = i * (TAU / 4) + 0.0;
+        this.eBullets.spawn((b) => {
+          b.x = e.x; b.y = e.y; b.vx = Math.cos(ang) * 150; b.vy = Math.sin(ang) * 150;
+          b.r = 9; b.dmg = 8; b.color = IND; b.life = 6; b.mine = false; b.fuse = 0; b.holdT = 0.5;
+        });
       }
     }
     sfx.hit();
@@ -549,12 +645,28 @@ export class World {
   stepEnemyBullets(dt) {
     const p = this.player;
     this.eBullets.forEach((b) => {
+      // bullet-hold (Grave Warden fake-out): freeze in place, then resume
+      if (b.holdT > 0) { b.holdT -= dt; b.life -= dt; if (b.life <= 0) b.alive = false; return; }
       b.life -= dt; b.x += b.vx * dt; b.y += b.vy * dt;
+      // mine: arm a fuse, detonate near the player or on timeout into a ring
+      if (b.mine) {
+        b.fuse -= dt;
+        const near = dist2(b.x, b.y, p.x, p.y) < 72 * 72;
+        if (b.fuse <= 0 || near) { this.detonateMine(b); return; }
+      }
       if (b.life <= 0 || b.y < -30 || b.y > WORLD_H + 30 || b.x < -30 || b.x > WORLD_W + 30) { b.alive = false; return; }
       if (p.iframes <= 0 && p.invuln <= 0 && hit(b.x, b.y, b.r, p.x, p.y, p.r * 0.8)) {
         b.alive = false; this.hurtPlayer(b.dmg);
       }
     });
+  }
+
+  detonateMine(b) {
+    b.alive = false;
+    shockwave(b.x, b.y, { color: '#9bff6b', max: 60, dur: 0.35, width: 3 });
+    burst(b.x, b.y, 8, { color: '#9bff6b', speed: 120, life: 0.4, r: 2.5 });
+    for (let i = 0; i < 6; i++) this.spawnEBullet(b.x, b.y, (i / 6) * TAU, 135, '#9bff6b');
+    addTrauma(0.08);
   }
 
   // -------- orbits (Aegis Blades) --------
@@ -573,19 +685,30 @@ export class World {
   // -------- damage & death --------
   damageEnemy(e, dmg, fx, fy, crit) {
     if (!e.alive) return;
+    const p = this.player;
     e.hp -= dmg; e.flash = 1;
     sfx.hit();
     burst(fx, fy, crit ? 7 : 3, { color: crit ? '#ffd166' : '#fff', speed: crit ? 180 : 90, life: 0.3, r: crit ? 3 : 2 });
     floatText(fx, fy, String(Math.round(dmg)), { color: crit ? '#ffd166' : '#eaf2ff', size: crit ? 24 : 16, crit });
-    if (crit) addTrauma(0.08);
+    if (crit) { addTrauma(0.08); if (p.critLifesteal) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.02); }
+    // Cull the Weak: finish low-HP non-boss enemies outright
+    if (e.hp > 0 && !e.isBoss && p.execute > 0 && e.hp <= e.maxHp * p.execute) e.hp = 0;
     if (e.hp <= 0) this.killEnemy(e);
   }
 
   killEnemy(e, silent) {
     if (!e.alive) return;
+    const wasFrozen = e.frozen > 0;
     e.alive = false;
     if (silent) return;
     const p = this.player;
+    // Frostbite: a frozen enemy shatters, harming nearby foes
+    if (p.shatter && wasFrozen && !e.isBoss) {
+      const sd = p.bulletDmg * 1.5; const sx = e.x, sy = e.y;
+      shockwave(sx, sy, { color: '#aef0ff', max: 80, dur: 0.35, width: 4 });
+      burst(sx, sy, 12, { color: '#aef0ff', speed: 200, life: 0.4, r: 3 });
+      this.enemies.forEach((o) => { if (o !== e && o.alive && !o.isBoss && dist2(sx, sy, o.x, o.y) < 80 * 80) this.damageEnemy(o, sd, o.x, o.y, false); });
+    }
     // combo + score
     this.combo++; this.comboT = 2.4; this.mult = 1 + Math.floor(this.combo / 5) * 0.5;
     this.score += Math.round(e.score * this.mult);

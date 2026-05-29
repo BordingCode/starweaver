@@ -186,9 +186,19 @@ function drawEnemyBullets(ctx, w) {
   ctx.globalCompositeOperation = 'lighter';
   w.eBullets.forEach((b) => {
     ctx.fillStyle = b.color;
+    if (b.mine) {
+      // pulsing proximity orb with a ring
+      const pulse = 1 + Math.sin(performance.now() / 120) * 0.15;
+      ctx.globalAlpha = 0.28; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.2 * pulse, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * pulse, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1; ctx.strokeStyle = '#eaffd6'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.5 * pulse, 0, TAU); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.35, 0, TAU); ctx.fill();
+      return;
+    }
     ctx.globalAlpha = 0.3;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2, 0, TAU); ctx.fill();   // halo
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = b.holdT > 0 ? 0.7 : 1;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.4, 0, TAU); ctx.fill();
@@ -223,6 +233,19 @@ function drawEnemies(ctx, w) {
       ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(e.x - wd / 2, e.y - e.r - 12, wd, 4);
       ctx.fillStyle = '#5dffb0'; ctx.fillRect(e.x - wd / 2, e.y - e.r - 12, wd * hpf, 4);
     }
+    // Warden beam telegraph: a charging line + reticle at the locked spot
+    if (e.def.shoot === 'beam' && e.teleP > 0) {
+      const k = e.teleP;
+      ctx.save();
+      ctx.globalAlpha = 0.25 + k * 0.55;
+      ctx.strokeStyle = '#ff8ad8'; ctx.lineWidth = 1 + k * 3;
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.lockX, e.lockY); ctx.stroke();
+      const rr = 26 - k * 16;
+      ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.lockX, e.lockY, Math.max(6, rr), 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(e.lockX - rr, e.lockY); ctx.lineTo(e.lockX + rr, e.lockY);
+      ctx.moveTo(e.lockX, e.lockY - rr); ctx.lineTo(e.lockX, e.lockY + rr); ctx.stroke();
+      ctx.restore();
+    }
   });
 }
 
@@ -240,6 +263,10 @@ function drawEnemyShape(ctx, e) {
     ctx.moveTo(0, -r); ctx.lineTo(r * 0.8, 0); ctx.lineTo(0, r); ctx.lineTo(-r * 0.8, 0); ctx.closePath();
   } else if (t === 'splitter' || t === 'mini') { // blob circle with bumps
     ctx.arc(0, 0, r * 0.85, 0, TAU);
+  } else if (t === 'warden') { // sentinel — vertical eye lozenge
+    ctx.moveTo(0, -r); ctx.quadraticCurveTo(r * 0.85, 0, 0, r); ctx.quadraticCurveTo(-r * 0.85, 0, 0, -r); ctx.closePath();
+  } else if (t === 'seeder') { // pod — octagon
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + Math.PI / 8; const fn = i ? 'lineTo' : 'moveTo'; ctx[fn](Math.cos(a) * r * 0.85, Math.sin(a) * r * 0.85); } ctx.closePath();
   } else { // grunt/drone — invader-ish capsule
     ctx.moveTo(-r, -r * 0.3); ctx.lineTo(-r * 0.4, -r); ctx.lineTo(r * 0.4, -r); ctx.lineTo(r, -r * 0.3);
     ctx.lineTo(r * 0.6, r * 0.7); ctx.lineTo(-r * 0.6, r * 0.7); ctx.closePath();
@@ -253,6 +280,9 @@ function drawEnemyShape(ctx, e) {
 function drawBoss(ctx, w) {
   const e = w.boss;
   if (!e || !e.alive) return;
+  const warden = e.bossId === 'warden';
+  const main = warden ? '#6b6bff' : '#ff4d9d';
+  const haloRGB = warden ? '107,107,255' : '255,77,157';
   const s = e.spawnAnim > 0 ? 0.6 + 0.4 * (1 - e.spawnAnim / 1.2) : 1;
   ctx.save();
   ctx.translate(e.x, e.y);
@@ -260,19 +290,31 @@ function drawBoss(ctx, w) {
   // outer halo
   ctx.globalCompositeOperation = 'lighter';
   const g = ctx.createRadialGradient(0, 0, 10, 0, 0, e.r * 1.6);
-  g.addColorStop(0, 'rgba(255,77,157,0.5)'); g.addColorStop(1, 'rgba(255,77,157,0)');
+  g.addColorStop(0, `rgba(${haloRGB},0.5)`); g.addColorStop(1, `rgba(${haloRGB},0)`);
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, e.r * 1.6, 0, TAU); ctx.fill();
   ctx.globalCompositeOperation = 'source-over';
-  // rotating crown of blades
-  ctx.fillStyle = e.flash > 0 ? '#fff' : '#ff4d9d';
-  ctx.shadowColor = '#ff4d9d'; ctx.shadowBlur = 18;
-  for (let i = 0; i < 8; i++) {
-    const a = e.spin + i / 8 * TAU;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a) * e.r, Math.sin(a) * e.r);
-    ctx.lineTo(Math.cos(a + 0.18) * e.r * 0.6, Math.sin(a + 0.18) * e.r * 0.6);
-    ctx.lineTo(Math.cos(a) * e.r * 1.4, Math.sin(a) * e.r * 1.4);
-    ctx.closePath(); ctx.fill();
+  ctx.fillStyle = e.flash > 0 ? '#fff' : main;
+  ctx.shadowColor = main; ctx.shadowBlur = 18;
+  if (warden) {
+    // heavy fractured crown — 6 broad obsidian shards, slow
+    for (let i = 0; i < 6; i++) {
+      const a = e.spin + i / 6 * TAU;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * e.r * 0.7, Math.sin(a) * e.r * 0.7);
+      ctx.lineTo(Math.cos(a + 0.32) * e.r * 1.25, Math.sin(a + 0.32) * e.r * 1.25);
+      ctx.lineTo(Math.cos(a - 0.32) * e.r * 1.25, Math.sin(a - 0.32) * e.r * 1.25);
+      ctx.closePath(); ctx.fill();
+    }
+  } else {
+    // rotating crown of blades
+    for (let i = 0; i < 8; i++) {
+      const a = e.spin + i / 8 * TAU;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * e.r, Math.sin(a) * e.r);
+      ctx.lineTo(Math.cos(a + 0.18) * e.r * 0.6, Math.sin(a + 0.18) * e.r * 0.6);
+      ctx.lineTo(Math.cos(a) * e.r * 1.4, Math.sin(a) * e.r * 1.4);
+      ctx.closePath(); ctx.fill();
+    }
   }
   // core
   ctx.beginPath(); ctx.arc(0, 0, e.r * 0.7, 0, TAU); ctx.fill();
@@ -282,7 +324,7 @@ function drawBoss(ctx, w) {
   const tele = e.tele || 0;
   const coreR = e.r * (0.22 + tele * 0.22);
   ctx.globalCompositeOperation = 'lighter';
-  ctx.fillStyle = tele > 0.5 ? '#fff' : (e.phase === 2 ? '#ffd166' : '#34f5ff');
+  ctx.fillStyle = tele > 0.5 ? '#fff' : (warden ? '#9fb0ff' : e.phase === 2 ? '#ffd166' : '#34f5ff');
   ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8 + tele * 22;
   ctx.beginPath(); ctx.arc(0, 0, coreR, 0, TAU); ctx.fill();
   ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
@@ -290,7 +332,7 @@ function drawBoss(ctx, w) {
   // boss hp bar at top
   const bw = WORLD_W - 80, bx = 40, by = 70;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(bx, by, bw, 9);
-  ctx.fillStyle = '#ff4d9d'; ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 9);
+  ctx.fillStyle = main; ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 9);
   ctx.fillStyle = '#eaf2ff'; ctx.font = "700 12px Orbitron, sans-serif"; ctx.textAlign = 'center';
   ctx.fillText(e.def.name, WORLD_W / 2, by - 6);
 }

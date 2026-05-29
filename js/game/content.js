@@ -36,6 +36,15 @@ export const ENEMIES = {
     name: 'Sporeling', hp: 3, r: 12, color: '#ffe49a', score: 8, contact: 8,
     fast: true, fireEvery: [3, 5], shoot: 'aimed',
   },
+  // --- Sector 2 archetypes ---
+  warden: { // anchors high, locks your position, then fires where you WERE — punishes camping
+    name: 'Warden', hp: 30, r: 25, color: '#ff8ad8', score: 40, contact: 12,
+    anchor: true, holdY: 230, fireEvery: [2.6, 3.2], shoot: 'beam',
+  },
+  seeder: { // drops slow proximity mines that pop into rings — zones the floor
+    name: 'Seeder', hp: 12, r: 20, color: '#9bff6b', score: 28, contact: 10,
+    slow: true, fireEvery: [2.0, 2.7], shoot: 'mine',
+  },
 };
 
 // ---------------- ARCANA (active spells) ----------------
@@ -109,13 +118,28 @@ export const UPGRADES = [
     apply: (p) => { p.spellCdMult *= 0.8; } },
   { id: 'overcharge', name: 'Overcharge', icon: '🌟', rarity: 'epic', desc: '+18% damage, +12% fire rate, -10 max HP.', max: 5,
     apply: (p) => { p.bulletDmg *= 1.18; p.fireRate *= 1.12; p.maxHp = Math.max(40, p.maxHp - 10); p.hp = Math.min(p.hp, p.maxHp); } },
+  // --- build-defining additions ---
+  { id: 'glasscannon', name: 'Glass Cannon', icon: 'critdmg', rarity: 'epic', desc: '+60% damage, but max HP cut by 40%.', max: 1,
+    apply: (p) => { p.bulletDmg *= 1.6; p.maxHp = Math.max(30, Math.round(p.maxHp * 0.6)); p.hp = Math.min(p.hp, p.maxHp); p.glass = true; } },
+  { id: 'momentum', name: 'Momentum', icon: 'spellpow', rarity: 'epic', desc: 'Standing still ramps damage up to +50%.', max: 1,
+    apply: (p) => { p.momentum = true; } },
+  { id: 'volley', name: 'Volley', icon: 'multishot', rarity: 'rare', desc: 'Fire an extra staggered burst; +wider spread.', max: 2,
+    apply: (p) => { p.burstShots += 1; p.spread = Math.min(p.spread + 0.12, 1.0); } },
+  { id: 'cull', name: 'Cull the Weak', icon: 'damage', rarity: 'rare', desc: 'Instantly finish low-HP enemies.', max: 3,
+    apply: (p) => { p.execute += 0.13; } },
+  { id: 'frostbite', name: 'Frostbite', icon: 'freeze', rarity: 'epic', desc: 'Frozen enemies shatter on death, harming others.', max: 1,
+    apply: (p) => { p.shatter = true; } },
+  { id: 'vampcrit', name: 'Vampire Spike', icon: 'lifesteal', rarity: 'rare', desc: 'Critical hits heal you a little.', max: 1,
+    apply: (p) => { p.critLifesteal = true; } },
 ];
 
 // ---------------- WAVE SCRIPT ----------------
-// A sector of waves. Each wave lists groups {type, count, formation, delay}. Final wave = boss.
-// formation: 'grid' (invaders block), 'arc', 'stream' (timed trickle), 'sides'.
+// Two authored sectors then procedural endless. Each wave lists groups
+// {type, count, formation, delay}. formation: 'grid' | 'arc' | 'stream' | 'sides'.
+// Sector 1 "The Weave" = density & offense. Sector 2 "The Hollows" = denial & positioning.
 export function buildWaves() {
   return [
+    // --- Sector 1: The Weave ---
     { label: 'WAVE 1', groups: [ { type: 'grunt', count: 6, formation: 'grid' } ] },
     { label: 'WAVE 2', groups: [ { type: 'grunt', count: 6, formation: 'grid' }, { type: 'drone', count: 4, formation: 'arc' } ] },
     { label: 'WAVE 3', groups: [ { type: 'drone', count: 6, formation: 'grid' }, { type: 'diver', count: 3, formation: 'stream', delay: 1.2 } ] },
@@ -123,7 +147,16 @@ export function buildWaves() {
     { label: 'WAVE 5', groups: [ { type: 'splitter', count: 4, formation: 'grid' }, { type: 'drone', count: 5, formation: 'arc' } ] },
     { label: 'ELITE', elite: true, groups: [ { type: 'shielded', count: 3, formation: 'arc' }, { type: 'diver', count: 4, formation: 'stream', delay: 0.9 } ] },
     { label: 'WAVE 7', groups: [ { type: 'weaver', count: 6, formation: 'grid' }, { type: 'bomber', count: 3, formation: 'sides' }, { type: 'diver', count: 4, formation: 'stream', delay: 1.4 } ] },
-    { label: 'BOSS', boss: true, groups: [] },
+    { label: 'BOSS', boss: true, bossId: 'queen', groups: [] },
+    // --- Sector 2: The Hollows (denial & positioning) ---
+    { label: 'WAVE 9', sector: 2, groups: [ { type: 'warden', count: 3, formation: 'arc' }, { type: 'grunt', count: 4, formation: 'grid' } ] },
+    { label: 'WAVE 10', sector: 2, groups: [ { type: 'seeder', count: 3, formation: 'sides' }, { type: 'drone', count: 5, formation: 'grid' } ] },
+    { label: 'WAVE 11', sector: 2, groups: [ { type: 'shielded', count: 3, formation: 'grid' }, { type: 'weaver', count: 4, formation: 'arc' } ] },
+    { label: 'WAVE 12', sector: 2, groups: [ { type: 'warden', count: 2, formation: 'sides' }, { type: 'seeder', count: 2, formation: 'sides' }, { type: 'diver', count: 4, formation: 'stream', delay: 0.9 } ] },
+    { label: 'ELITE', sector: 2, elite: true, groups: [ { type: 'warden', count: 2, formation: 'arc' }, { type: 'shielded', count: 2, formation: 'grid' }, { type: 'splitter', count: 1, formation: 'grid' } ] },
+    { label: 'WAVE 14', sector: 2, groups: [ { type: 'seeder', count: 4, formation: 'grid' }, { type: 'bomber', count: 4, formation: 'sides' } ] },
+    { label: 'WAVE 15', sector: 2, groups: [ { type: 'warden', count: 2, formation: 'arc' }, { type: 'seeder', count: 2, formation: 'sides' }, { type: 'diver', count: 4, formation: 'stream', delay: 1.2 } ] },
+    { label: 'BOSS', boss: true, bossId: 'warden', sector: 2, groups: [] },
   ];
 }
 
