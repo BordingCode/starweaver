@@ -69,7 +69,9 @@ html, body {
   background: linear-gradient(180deg, #c9f6ff 0%, var(--cyan) 40%, var(--violet) 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 0 22px rgba(52,245,255,.45));
+  animation: logoGlow 3.6s ease-in-out infinite;
 }
+@keyframes logoGlow { 0%,100%{ filter: drop-shadow(0 0 16px rgba(52,245,255,.35)); } 50%{ filter: drop-shadow(0 0 32px rgba(157,107,255,.6)); } }
 .title-tag { color: var(--muted); letter-spacing: .26em; text-transform: uppercase; font-size: 12px; margin-top: -4px; }
 
 .btn {
@@ -268,7 +270,7 @@ html, body {
 .pact-curse .ic { color: var(--red); }
 
 @media (prefers-reduced-motion: reduce) {
-  .card, .splash-mark, .toast.show, .boss-banner.show .bb-name, .boss-banner.show .bb-warn, .boss-banner.out { animation: none !important; }
+  .card, .splash-mark, .toast.show, .boss-banner.show .bb-name, .boss-banner.show .bb-warn, .boss-banner.out, .title-logo { animation: none !important; }
 }
 /* in-game "Reduce motion" toggle (set on <body> by applySettings) mirrors the OS setting */
 body.reduce-motion .card,
@@ -276,4 +278,5 @@ body.reduce-motion .splash-mark,
 body.reduce-motion .toast.show,
 body.reduce-motion .boss-banner.show .bb-name,
 body.reduce-motion .boss-banner.show .bb-warn,
-body.reduce-motion .boss-banner.out { animation: none !important; }
+body.reduce-motion .boss-banner.out,
+body.reduce-motion .title-logo { animation: none !important; }
