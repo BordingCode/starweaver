@@ -16,7 +16,7 @@ export class CanvasView {
   }
 
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const cssW = window.innerWidth;
     const cssH = window.innerHeight;
     this.cssW = cssW; this.cssH = cssH;
@@ -36,14 +36,10 @@ export class CanvasView {
     this.dpr = dpr;
   }
 
-  // begin a frame: set transform so we can draw in world coords
+  // begin a frame: set transform so we can draw in world coords.
+  // No clear here — the world background (cover-fit) repaints every pixel each frame.
   begin() {
     const ctx = this.ctx;
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    // background fill across whole canvas (in css px)
-    ctx.fillStyle = '#05030f';
-    ctx.fillRect(0, 0, this.cssW, this.cssH);
-    // now move into world space
     ctx.setTransform(this.dpr * this.scale, 0, 0, this.dpr * this.scale, this.dpr * this.offX, this.dpr * this.offY);
   }
 

@@ -105,29 +105,29 @@ export function drawFX(ctx) {
     ctx.lineWidth = o.width * (1 - k * 0.5);
     ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, TAU); ctx.stroke();
   });
-  // particles (additive glow)
+  // particles — additive glow via layered circles (NO shadowBlur: too slow on mobile)
   ctx.globalCompositeOperation = 'lighter';
   parts.forEach((p) => {
     const k = 1 - p.life / p.max;
-    ctx.globalAlpha = k;
+    const r = p.r * (0.4 + k * 0.6);
     ctx.fillStyle = p.color;
-    if (p.glow) { ctx.shadowColor = p.color; ctx.shadowBlur = 10; }
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.4 + k * 0.6), 0, TAU); ctx.fill();
+    if (p.glow) { ctx.globalAlpha = k * 0.35; ctx.beginPath(); ctx.arc(p.x, p.y, r * 2.1, 0, TAU); ctx.fill(); }
+    ctx.globalAlpha = k;
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, TAU); ctx.fill();
   });
-  ctx.shadowBlur = 0;
   ctx.globalCompositeOperation = 'source-over';
-  // floating numbers
+  // floating numbers — cheap dark outline instead of shadowBlur
   ctx.textAlign = 'center';
   floats.forEach((o) => {
     const k = o.life / o.dur;
     ctx.globalAlpha = k < 0.15 ? k / 0.15 : (1 - (k - 0.15) / 0.85) * 0.9 + 0.1;
     const sc = o.crit ? 1 + (1 - Math.min(k * 4, 1)) * 0.6 : 1;
     ctx.font = `900 ${o.size * sc}px Orbitron, sans-serif`;
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(5,3,15,0.85)';
+    ctx.strokeText(o.text, o.x, o.y);
     ctx.fillStyle = o.color;
-    ctx.shadowColor = o.color; ctx.shadowBlur = o.crit ? 12 : 6;
     ctx.fillText(o.text, o.x, o.y);
   });
-  ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
   ctx.restore();
 }

@@ -12,13 +12,13 @@ const LAYERS = [
 const stars = LAYERS.map((l) => Array.from({ length: l.n }, () => ({ x: Math.random() * WORLD_W, y: Math.random() * WORLD_H })));
 
 export function drawWorld(ctx, w, view, alpha) {
-  const cx = FX.shakeX, cy = FX.shakeY;
-  ctx.save();
-  ctx.translate(cx, cy);
-
+  // Background is drawn stable (no shake) and covers every pixel, so we don't
+  // need a separate full-screen clear. Only the foreground shakes.
   drawBackground(ctx, w);
+  if (!w) { drawFlash(ctx, view); return; }
 
-  if (!w) { ctx.restore(); drawFlash(ctx, view); return; }
+  ctx.save();
+  ctx.translate(FX.shakeX, FX.shakeY);
 
   drawEnemyBullets(ctx, w);
   drawEnemies(ctx, w);
@@ -35,12 +35,15 @@ export function drawWorld(ctx, w, view, alpha) {
   drawFlash(ctx, view);
 }
 
+let vignetteGrad = null;
 function drawVignette(ctx, w) {
   // subtle constant edge darkening for focus, plus a red danger pulse at low HP
-  const g = ctx.createRadialGradient(WORLD_W / 2, WORLD_H / 2, WORLD_H * 0.35, WORLD_W / 2, WORLD_H / 2, WORLD_H * 0.72);
-  g.addColorStop(0, 'rgba(0,0,0,0)');
-  g.addColorStop(1, 'rgba(0,0,0,0.45)');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+  if (!vignetteGrad) {
+    vignetteGrad = ctx.createRadialGradient(WORLD_W / 2, WORLD_H / 2, WORLD_H * 0.35, WORLD_W / 2, WORLD_H / 2, WORLD_H * 0.72);
+    vignetteGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    vignetteGrad.addColorStop(1, 'rgba(0,0,0,0.45)');
+  }
+  ctx.fillStyle = vignetteGrad; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
   if (!w || w.over) return;
   const frac = w.player.hp / w.player.maxHp;
   if (frac < 0.35) {
@@ -53,16 +56,19 @@ function drawVignette(ctx, w) {
   }
 }
 
+let nebulaGrad = null;
 function drawBackground(ctx, w) {
   const t = w ? w.bgShift : performance.now() / 60;
-  // nebula glow
-  const g = ctx.createRadialGradient(WORLD_W * 0.5, WORLD_H * 0.25, 40, WORLD_W * 0.5, WORLD_H * 0.3, WORLD_H * 0.8);
-  g.addColorStop(0, 'rgba(40,28,90,0.55)');
-  g.addColorStop(0.5, 'rgba(18,12,46,0.5)');
-  g.addColorStop(1, 'rgba(5,3,15,0.2)');
+  // nebula glow (gradient is fixed -> build once and reuse)
+  if (!nebulaGrad) {
+    nebulaGrad = ctx.createRadialGradient(WORLD_W * 0.5, WORLD_H * 0.25, 40, WORLD_W * 0.5, WORLD_H * 0.3, WORLD_H * 0.8);
+    nebulaGrad.addColorStop(0, 'rgba(40,28,90,0.55)');
+    nebulaGrad.addColorStop(0.5, 'rgba(18,12,46,0.5)');
+    nebulaGrad.addColorStop(1, 'rgba(5,3,15,0.2)');
+  }
   ctx.fillStyle = '#05030f';
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-  ctx.fillStyle = g;
+  ctx.fillStyle = nebulaGrad;
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
   for (let i = 0; i < LAYERS.length; i++) {
     const l = LAYERS[i]; const arr = stars[i];
@@ -127,10 +133,10 @@ function drawPickups(ctx, w) {
     ctx.save();
     ctx.globalAlpha = blink ? 0.4 : 1;
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 14;
-    ctx.beginPath(); ctx.arc(o.x, yy, o.r, 0, TAU); ctx.fill();
+    ctx.fillStyle = col;
+    ctx.globalAlpha = (blink ? 0.4 : 1) * 0.3; ctx.beginPath(); ctx.arc(o.x, yy, o.r * 1.9, 0, TAU); ctx.fill();
+    ctx.globalAlpha = blink ? 0.4 : 1; ctx.beginPath(); ctx.arc(o.x, yy, o.r, 0, TAU); ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
-    ctx.shadowBlur = 0;
     // glyph
     ctx.fillStyle = '#05030f'; ctx.lineWidth = 2.5; ctx.strokeStyle = '#05030f';
     if (o.kind === 'shield') {
@@ -151,7 +157,8 @@ function drawOrbits(ctx, w) {
   for (let i = 0; i < p.orbits; i++) {
     const a = p.orbitAngle + (i / p.orbits) * TAU;
     const ox = p.x + Math.cos(a) * R, oy = p.y + Math.sin(a) * R;
-    ctx.fillStyle = '#34f5ff'; ctx.shadowColor = '#34f5ff'; ctx.shadowBlur = 12;
+    ctx.fillStyle = '#34f5ff';
+    ctx.globalAlpha = 0.3; ctx.beginPath(); ctx.arc(ox, oy, 12, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
     ctx.save(); ctx.translate(ox, oy); ctx.rotate(a + p.orbitAngle * 2);
     ctx.fillRect(-3, -10, 6, 20);
     ctx.restore();
@@ -164,13 +171,13 @@ function drawPlayerBullets(ctx, w) {
   ctx.globalCompositeOperation = 'lighter';
   w.pBullets.forEach((b) => {
     ctx.fillStyle = b.meteor ? '#ff9f43' : (b.crit ? '#ffd166' : '#aef6ff');
-    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 12;
-    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
-    // streak
-    ctx.globalAlpha = 0.4;
-    ctx.beginPath(); ctx.ellipse(b.x, b.y + 6, b.r * 0.7, b.r * 1.8, 0, 0, TAU); ctx.fill();
+    // streak + halo (additive) then bright core — no shadowBlur
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath(); ctx.ellipse(b.x, b.y + 6, b.r * 1.1, b.r * 2.4, 0, 0, TAU); ctx.fill();
     ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
   });
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 
@@ -178,11 +185,15 @@ function drawEnemyBullets(ctx, w) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   w.eBullets.forEach((b) => {
-    ctx.fillStyle = b.color; ctx.shadowColor = b.color; ctx.shadowBlur = 10;
+    ctx.fillStyle = b.color;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2, 0, TAU); ctx.fill();   // halo
+    ctx.globalAlpha = 1;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.4, 0, TAU); ctx.fill();
   });
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 
@@ -194,10 +205,13 @@ function drawEnemies(ctx, w) {
     ctx.translate(e.x, e.y);
     ctx.scale(s, s);
     const col = e.flash > 0 ? '#ffffff' : e.def.color;
-    ctx.shadowColor = e.def.color; ctx.shadowBlur = 12;
+    // cheap additive halo instead of shadowBlur
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.28; ctx.fillStyle = e.def.color;
+    ctx.beginPath(); ctx.arc(0, 0, e.r * 1.5, 0, TAU); ctx.fill();
+    ctx.restore();
     ctx.fillStyle = col;
     drawEnemyShape(ctx, e);
-    ctx.shadowBlur = 0;
     // frozen tint
     if (e.frozen > 0) { ctx.globalAlpha = 0.4; ctx.fillStyle = '#aef0ff'; drawEnemyShape(ctx, e); ctx.globalAlpha = 1; }
     // shield bracket
