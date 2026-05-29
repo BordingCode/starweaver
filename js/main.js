@@ -405,7 +405,7 @@ function showPacts() {
         return b; })(),
     );
     c.addEventListener('click', () => {
-      resumeAudio(); sfx.pickup();
+      resumeAudio(); sfx.pact();
       w._pactGrant = null;
       pact.apply(w); w.pacts.push(pact.id);
       buildHUD();

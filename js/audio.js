@@ -102,6 +102,12 @@ export const sfx = {
     [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.4, { type: 'triangle', gain: 0.16, delay: i * 0.08 }));
   },
   bossWarn() { tone(110, 0.8, { type: 'sawtooth', gain: 0.25, slideTo: 70 }); tone(55, 1.0, { type: 'square', gain: 0.18 }); },
+  // soft rising windup — an audio telegraph for charging attacks (pulsar/warden/boss)
+  charge() { tone(300, 0.5, { type: 'sine', gain: 0.045, slideTo: 720 }); },
+  // weighty, faintly ominous seal for forging a Pact
+  pact() { tone(140, 0.55, { type: 'sawtooth', gain: 0.16, slideTo: 90 }); tone(420, 0.5, { type: 'sine', gain: 0.08, delay: 0.05, slideTo: 580 }); noise(0.3, { gain: 0.08, type: 'bandpass', freq: 1400, q: 1.2 }); },
+  // short stinger when a boss escalates to a new phase
+  phase() { tone(160, 0.45, { type: 'square', gain: 0.13, slideTo: 300 }); noise(0.22, { gain: 0.1, type: 'lowpass', freq: 1000 }); },
   win() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, 0.6, { type: 'sine', gain: 0.18, delay: i * 0.12 })); },
   lose() { [330, 294, 262, 196].forEach((f, i) => tone(f, 0.6, { type: 'sawtooth', gain: 0.16, delay: i * 0.16, slideTo: f * 0.6 })); },
 };

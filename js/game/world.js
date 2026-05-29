@@ -127,6 +127,7 @@ export class World {
       e.isBoss = false; e.descend = def.slow ? 7 : 11;
       // affix defaults (reset every spawn since the pool reuses objects)
       e.affixes = null; e.dmgTaken = 1; e.heal = 0; e.reflect = 0; e.detonate = 0; e.forceSplit = null;
+      e.locking = false; e.teleP = 0; e.charged = false; // reset windup state on (re)spawn
       if (affixes && affixes.length) this.applyAffixes(e, affixes);
       e.fireT *= e.fireMult; // fold Swift + any fire-curse into the first shot too
     });
@@ -171,7 +172,7 @@ export class World {
       e.x = WORLD_W / 2; e.y = -120; e.baseX = WORLD_W / 2; e.baseY = 170;
       e.r = b.r; e.maxHp = hp; e.hp = hp; e.score = 1000; e.contact = 22;
       e.mode = 'boss'; e.isBoss = true; e.flash = 0; e.frozen = 0; e.burnT = 0; e.burnDmg = 0;
-      e.spawnAnim = 1.2; e.phase = 0; e.atkT = 2.4; e.atkMode = 0; e.spin = 0; e.dir = 1; e.shield = 0; e.tele = 0; e.pullT = 0;
+      e.spawnAnim = 1.2; e.phase = 0; e.lastPhase = 0; e.atkT = 2.4; e.atkMode = 0; e.spin = 0; e.dir = 1; e.shield = 0; e.tele = 0; e.pullT = 0;
     });
   }
 
@@ -506,9 +507,10 @@ export class World {
           if (e.def.shoot === 'beam' && !e.locking && e.fireT <= 0.7) { e.locking = true; e.lockX = p.x; e.lockY = p.y; }
           const charging = e.def.shoot === 'pulse' ? e.fireT <= 0.7 : e.locking;
           e.teleP = charging ? clamp(1 - e.fireT / 0.7, 0, 1) : 0;
+          if (charging && !e.charged) { e.charged = true; sfx.charge(); } // audio telegraph (once per windup)
           if (e.fireT <= 0) {
             if (e.def.shoot === 'beam') this.fireBeam(e); else this.firePulse(e);
-            e.locking = false; e.teleP = 0;
+            e.locking = false; e.teleP = 0; e.charged = false;
             e.fireT = (e.def.fireEvery[0] + this.rng() * (e.def.fireEvery[1] - e.def.fireEvery[0])) * e.fireMult;
           }
         } else if (e.fireT <= 0) {
@@ -592,6 +594,7 @@ export class World {
     // phase by hp
     const frac = e.hp / e.maxHp;
     e.phase = frac > 0.66 ? 0 : frac > 0.33 ? 1 : 2;
+    if (e.phase !== e.lastPhase) { e.lastPhase = e.phase; sfx.phase(); screenFlash(0.22, '255,255,255'); addTrauma(0.3); } // escalation stinger
     e.atkT -= dt * (1 + (1 - frac) * 0.5);
     // telegraph charge
     e.tele = clamp(1 - e.atkT / 0.6, 0, 1);
