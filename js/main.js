@@ -157,18 +157,21 @@ function startRun() {
   loop.start();
   toast(Game.world.waves[0].label);
   if (Game.meta.runs <= 1) {
-    setTimeout(() => { if (Game.screen === 'playing') toast('DRAG TO MOVE'); }, 1900);
-    setTimeout(() => { if (Game.screen === 'playing') toast('STOP TO FIRE'); }, 3700);
+    setTimeout(() => { if (Game.screen === 'playing') toast('DRAG TO STEER'); }, 1900);
+    setTimeout(() => { if (Game.screen === 'playing') toast('RELEASE TO FIRE'); }, 3700);
   }
   syncDebug();
 }
 
 function onWaveClear() {
-  Game.screen = 'upgrade';
   setMusicIntensity(0.2);
-  const cleared = Game.world.waves[Game.world.wave];
-  if (cleared && cleared.elite) showPacts();
-  else showUpgrade();
+  const w = Game.world;
+  const cleared = w.waves[w.wave];
+  if (cleared && cleared.elite) { Game.screen = 'upgrade'; showPacts(); return; }
+  // Only offer an upgrade if you've banked a level-up from kills (XP curve). Otherwise
+  // carry straight on — so power growth is earned, not one-free-per-wave.
+  if (w.pendingPicks > 0) { Game.screen = 'upgrade'; showUpgrade(); return; }
+  resumeAfterUpgrade();
 }
 
 function resumeAfterUpgrade() {
@@ -249,7 +252,7 @@ function showTitle() {
   row.append(hangar, guideBtn, setBtn);
   s.append(row);
   if (Game.meta.best > 0) s.append(el('div', 'stat-line', `Best run: ${Game.meta.best}`));
-  s.append(el('div', 'hint', 'Drag to fly — your ship floats above your finger. You only <b>shoot while still</b>, so dodge, then stand and unload. Tap the orbs to <b>Blink</b> and cast arcana. Clear a wave, pick a power, repeat.'));
+  s.append(el('div', 'hint', 'Drag from anywhere to steer — the further you drag, the faster you fly; <b>release to stop and fire</b>. So weave through bullets, then plant and unload. Tap the orbs to <b>Blink</b> (a safe dash) and cast arcana. Kill foes to <b>level up</b> and pick powers.'));
   clearApp(); app.append(s);
   syncDebug();
 }
@@ -454,7 +457,7 @@ function showUpgrade() {
   clearApp();
   const w = Game.world;
   const s = el('div', 'screen');
-  s.append(el('div', 'pick-title', `Wave Cleared — Choose a Power`));
+  s.append(el('div', 'pick-title', `Level ${w.level} — Choose a Power`));
   const cards = el('div', 'cards');
   const picks = weightedPick();
   picks.forEach((u) => {
@@ -468,6 +471,7 @@ function showUpgrade() {
       resumeAudio(); sfx.pickup();
       if (u.spell) { w.player.spells.push(u.spell); w.player.spellCd.push(0); }
       else { w.applyUpgrade(u); w.upCounts[u.id] = (w.upCounts[u.id] || 0) + 1; }
+      w.pendingPicks = Math.max(0, w.pendingPicks - 1); // consumed one banked level-up
       buildHUD();
       resumeAfterUpgrade();
     });

@@ -5,6 +5,7 @@ export class Input {
     this.view = view;
     this.active = false;        // finger/mouse down on the play field
     this.x = 0; this.y = 0;     // current pointer world pos
+    this.ox = 0; this.oy = 0;   // anchor (where the finger first touched) — joystick origin
     this.dx = 0; this.dy = 0;   // delta since last frame (world units)
     this._px = 0; this._py = 0;
     this._moved = 0;            // accumulated movement magnitude this frame
@@ -17,6 +18,7 @@ export class Input {
       this.justDown = true;
       const p = view.toWorld(e.clientX, e.clientY);
       this.x = p.x; this.y = p.y; this._px = p.x; this._py = p.y;
+      this.ox = p.x; this.oy = p.y;   // anchor the joystick where the finger lands
       e.preventDefault();
     };
     const onMove = (e) => {
@@ -31,6 +33,16 @@ export class Input {
     window.addEventListener('pointermove', onMove, { passive: false });
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
+  }
+
+  // relative joystick: vector from the touch anchor to the current finger position.
+  // Returns {mag: 0..1 throttle, nx, ny} unit direction. maxR = world units to full speed.
+  joystick(maxR = 70) {
+    if (!this.active) return { mag: 0, nx: 0, ny: 0 };
+    const dx = this.x - this.ox, dy = this.y - this.oy;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-4) return { mag: 0, nx: 0, ny: 0 };
+    return { mag: Math.min(len, maxR) / maxR, nx: dx / len, ny: dy / len };
   }
 
   // called once per sim step to compute deltas; returns movement magnitude

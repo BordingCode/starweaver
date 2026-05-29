@@ -6,9 +6,8 @@ import { sfx } from '../audio.js';
 import { ENEMIES, SPELLS, AFFIXES, AFFIX_KEYS, UPGRADES, buildWaves } from './content.js';
 import { makePlayer } from './player.js';
 
-const MOVE_DEADZONE = 1.6;   // world units of pointer move below which we count as "still"
+const MOVE_DEADZONE = 2.0;   // world units of travel/frame below which we count as "still"
 const MOVE_HOLD = 0.07;      // seconds the pointer must settle before guns re-engage (jitter guard)
-const FIRE_OFFSET_Y = 64;    // ship floats this far above the finger
 
 export class World {
   constructor(rng) {
@@ -22,6 +21,8 @@ export class World {
     this.wave = 0;
     this.score = 0;
     this.combo = 0; this.comboT = 0; this.mult = 1;
+    // XP leveling: kills grant XP; crossing an escalating threshold banks an upgrade pick
+    this.xp = 0; this.level = 1; this.xpNext = 50; this.pendingPicks = 0;
     this.state = 'fighting';   // fighting | cleared | dead | won
     this.over = false; this.won = false;
     this.spawnQueue = [];
@@ -33,6 +34,7 @@ export class World {
     this.time = 0;
     this.shotsToCredit = 0;
     this.targetX = this.player.x; this.targetY = this.player.y;
+    this.moveDirX = 0; this.moveDirY = 1; // last joystick direction (drives dash); default downward
     this.onWaveClear = null;   // set by main: callback to open upgrade screen
     this.onGameOver = null;
     this.bgShift = 0;
@@ -109,7 +111,7 @@ export class World {
   spawnEnemy(type, x, y, baseX, baseY, mode, affixes) {
     const def = ENEMIES[type];
     if (!def) return; // safety: ignore unknown types rather than crash
-    const hpScale = 1 + this.wave * 0.12;
+    const hpScale = 1 + this.wave * 0.16;
     this.enemies.spawn((e) => {
       e.type = type; e.def = def;
       e.x = x; e.y = y - 40; e.baseX = baseX; e.baseY = baseY;
@@ -174,6 +176,16 @@ export class World {
       e.mode = 'boss'; e.isBoss = true; e.flash = 0; e.frozen = 0; e.burnT = 0; e.burnDmg = 0;
       e.spawnAnim = 1.2; e.phase = 0; e.lastPhase = 0; e.atkT = 2.4; e.atkMode = 0; e.spin = 0; e.dir = 1; e.shield = 0; e.tele = 0; e.pullT = 0;
     });
+  }
+
+  // escalating XP cost: 50, 66, 87, 115, 152, 200... so power growth decelerates
+  xpForLevel(L) { return Math.round(50 * Math.pow(1.32, L - 1)); }
+  grantXP(amount) {
+    this.xp += amount;
+    while (this.xp >= this.xpNext) {
+      this.xp -= this.xpNext; this.level++; this.pendingPicks++;
+      this.xpNext = this.xpForLevel(this.level);
+    }
   }
 
   win() {
@@ -265,21 +277,20 @@ export class World {
       if (Math.random() < 0.8) burst(p.x, p.y, 2, { color: '#ffd166', speed: 40, life: 0.3, r: 3 });
     }
 
-    // drag-to-move: ship target is above the finger
+    // relative virtual joystick: drag direction = move direction, throttled by drag length.
+    // Standing still (throttle in the deadzone, or finger lifted) re-engages the guns.
+    const DEADZONE = 0.18;
+    const MAX_SPEED = 430 * p.moveSpeed;   // world units/sec at full throttle — the master difficulty dial
     let moveMag = 0;
-    if (input.active) {
-      const tx = clamp(input.x, p.r, WORLD_W - p.r);
-      const ty = clamp(input.y - FIRE_OFFSET_Y, 90, WORLD_H - 40);
-      moveMag = input.consume();
-      // remember target (drives dash direction)
-      this.targetX = tx; this.targetY = ty;
-      // smooth follow toward target (responsive but weighted)
-      const speed = 18 * p.moveSpeed;
-      p.x += (tx - p.x) * Math.min(1, dt * speed);
-      p.y += (ty - p.y) * Math.min(1, dt * speed);
-    } else {
-      input.consume();
+    const j = input.joystick();
+    if (input.active && j.mag > DEADZONE) {
+      const t = (j.mag - DEADZONE) / (1 - DEADZONE); // rescale past the deadzone -> 0..1
+      const step = MAX_SPEED * t * dt;
+      p.x += j.nx * step; p.y += j.ny * step;
+      this.moveDirX = j.nx; this.moveDirY = j.ny;     // remembered for dash direction
+      moveMag = step;
     }
+    input.consume();
     p.x = clamp(p.x, p.r, WORLD_W - p.r);
     p.y = clamp(p.y, 90, WORLD_H - 40);
     // settle timer: any real drag keeps guns off for a few frames, so finger jitter
@@ -369,14 +380,15 @@ export class World {
   doDash() {
     const p = this.player;
     sfx.dash();
-    // dash toward where the finger is (the move target), else upward
-    let ax = 0, ay = -1;
-    const dx = this.targetX - p.x, dy = this.targetY - p.y;
-    const m = Math.hypot(dx, dy);
-    if (m > 8) { ax = dx / m; ay = dy / m; }
+    // dash in the CURRENT move direction (where you're steering). Standing still →
+    // retreat downward, away from the swarm (which is always above). Generous i-frames
+    // make Blink a reliable "get me out" button, not a lunge into the enemy.
+    let ax = this.moveDirX || 0, ay = this.moveDirY || 0;
+    const m = Math.hypot(ax, ay);
+    if (m < 0.1) { ax = 0; ay = 1; } else { ax /= m; ay /= m; }
     const DASH = 1500;
-    p.dashVx = ax * DASH; p.dashVy = ay * DASH * 0.7;
-    p.dashT = 0.16; p.iframes = 0.34;
+    p.dashVx = ax * DASH; p.dashVy = ay * DASH;
+    p.dashT = 0.16; p.iframes = 0.45;
     if (p.kineticBarrier) { p.shield = Math.min(Math.max(p.maxShield, 24), p.shield + (p.maxShield > 0 ? p.maxShield * 0.25 : 12)); }
     shockwave(p.x, p.y, { color: '#ffd166', max: 50, dur: 0.35, width: 3 });
     addTrauma(0.12);
@@ -545,7 +557,7 @@ export class World {
     const p = this.player;
     const shoot = e.def.shoot;
     const a = angle(e.x, e.y, p.x, p.y);
-    const speed = 175 + this.wave * 6;
+    const speed = 195 + this.wave * 7;
     const fire = (ang, sp = speed) => this.spawnEBullet(e.x, e.y + e.r, ang, sp, e.def.color);
     if (shoot === 'aimed') fire(a);
     else if (shoot === 'double') { fire(a - 0.12); fire(a + 0.12); }
@@ -862,6 +874,7 @@ export class World {
     }
     this.mult = newMult;
     this.score += Math.round(e.score * this.mult);
+    this.grantXP(e.score); // XP = raw score (champions already worth more) → escalating level-ups
     // lifesteal
     if (p.lifesteal > 0) { p.hp = Math.min(p.maxHp, p.hp + p.lifesteal); }
     // fx
