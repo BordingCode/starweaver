@@ -147,6 +147,7 @@ function startRun() {
   const grants = applyMeta(Game.world.player, Game.meta.upg || {});
   Game.world.rerolls = grants.rerolls; Game.world.maxRerolls = grants.rerolls;
   Game.world.revives = grants.revives; Game.world.luck = grants.luck;
+  Game.world.xp = grants.xpStart || 0; // Veteran's Cache head-start toward leveling
   Game.world.onWaveClear = onWaveClear;
   Game.world.onGameOver = onGameOver;
   Game.world.startWave(0);
