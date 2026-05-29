@@ -193,7 +193,12 @@ function drawPlayerBullets(ctx, w) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   w.pBullets.forEach((b) => {
-    ctx.fillStyle = b.meteor ? '#ff9f43' : (b.crit ? '#ffd166' : '#aef6ff');
+    // tint by the shot's element so your build is visible in your own fire (Brotato-style "distinct feel")
+    let col = '#aef6ff';
+    if (b.burn > 0) col = '#ff9f43'; else if (b.freeze > 0) col = '#7fe9ff'; else if (b.chain > 0) col = '#c79dff';
+    if (b.meteor) col = '#ff9f43';
+    if (b.crit) col = '#ffd166';
+    ctx.fillStyle = col;
     // streak + halo (additive) then bright core — no shadowBlur
     ctx.globalAlpha = 0.35;
     ctx.beginPath(); ctx.ellipse(b.x, b.y + 6, b.r * 1.1, b.r * 2.4, 0, 0, TAU); ctx.fill();
