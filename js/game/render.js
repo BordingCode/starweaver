@@ -263,6 +263,15 @@ function drawEnemies(ctx, w) {
       ctx.moveTo(e.lockX, e.lockY - rr); ctx.lineTo(e.lockX, e.lockY + rr); ctx.stroke();
       ctx.restore();
     }
+    // Pulsar pulse telegraph: a ring that closes in as the beat charges (reduced-motion safe — no flash)
+    if (e.def.shoot === 'pulse' && e.teleP > 0) {
+      const k = e.teleP;
+      ctx.save();
+      ctx.globalAlpha = 0.2 + k * 0.5;
+      ctx.strokeStyle = '#ffe14d'; ctx.lineWidth = 1 + k * 3;
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 6 + (1 - k) * 46, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
   });
 }
 
@@ -298,8 +307,9 @@ function drawBoss(ctx, w) {
   const e = w.boss;
   if (!e || !e.alive) return;
   const warden = e.bossId === 'warden';
-  const main = warden ? '#6b6bff' : '#ff4d9d';
-  const haloRGB = warden ? '107,107,255' : '255,77,157';
+  const chrono = e.bossId === 'chrono';
+  const main = warden ? '#6b6bff' : chrono ? '#ffd14d' : '#ff4d9d';
+  const haloRGB = warden ? '107,107,255' : chrono ? '255,209,77' : '255,77,157';
   const s = e.spawnAnim > 0 ? 0.6 + 0.4 * (1 - e.spawnAnim / 1.2) : 1;
   ctx.save();
   ctx.translate(e.x, e.y);
@@ -322,6 +332,20 @@ function drawBoss(ctx, w) {
       ctx.lineTo(Math.cos(a - 0.32) * e.r * 1.25, Math.sin(a - 0.32) * e.r * 1.25);
       ctx.closePath(); ctx.fill();
     }
+  } else if (chrono) {
+    // clockwork cog: 12 short teeth around the rim + two ticking clock hands
+    for (let i = 0; i < 12; i++) {
+      const a = e.spin + i / 12 * TAU;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a - 0.10) * e.r, Math.sin(a - 0.10) * e.r);
+      ctx.lineTo(Math.cos(a - 0.07) * e.r * 1.18, Math.sin(a - 0.07) * e.r * 1.18);
+      ctx.lineTo(Math.cos(a + 0.07) * e.r * 1.18, Math.sin(a + 0.07) * e.r * 1.18);
+      ctx.lineTo(Math.cos(a + 0.10) * e.r, Math.sin(a + 0.10) * e.r);
+      ctx.closePath(); ctx.fill();
+    }
+    const hand = (ang, len, wdt) => { ctx.save(); ctx.rotate(ang); ctx.beginPath(); ctx.moveTo(0, -len); ctx.lineTo(wdt, 0); ctx.lineTo(-wdt, 0); ctx.closePath(); ctx.fill(); ctx.restore(); };
+    hand(e.spin * 3, e.r * 1.3, 5);    // long hand
+    hand(e.spin * 1.1, e.r * 0.8, 6);  // short hand
   } else {
     // rotating crown of blades
     for (let i = 0; i < 8; i++) {
@@ -341,7 +365,7 @@ function drawBoss(ctx, w) {
   const tele = e.tele || 0;
   const coreR = e.r * (0.22 + tele * 0.22);
   ctx.globalCompositeOperation = 'lighter';
-  ctx.fillStyle = tele > 0.5 ? '#fff' : (warden ? '#9fb0ff' : e.phase === 2 ? '#ffd166' : '#34f5ff');
+  ctx.fillStyle = tele > 0.5 ? '#fff' : (warden ? '#9fb0ff' : chrono ? '#ffe14d' : e.phase === 2 ? '#ffd166' : '#34f5ff');
   ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8 + tele * 22;
   ctx.beginPath(); ctx.arc(0, 0, coreR, 0, TAU); ctx.fill();
   ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;

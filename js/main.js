@@ -24,6 +24,7 @@ const loop = new GameLoop({
 });
 
 // ---------------- DOM helpers ----------------
+const SECTOR_NAMES = { 1: 'THE WEAVE', 2: 'THE HOLLOWS', 3: 'THE GLARE' };
 function el(tag, cls, html) { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; }
 function clearApp() { app.replaceChildren(); }
 
@@ -153,7 +154,12 @@ function resumeAfterUpgrade() {
   setMusicIntensity(Math.min(1, next / 8));
   w.startWave(next);
   const def = w.waves[next];
-  if (def) toast(def.boss ? 'BOSS' : def.elite ? 'ELITE · CHAMPIONS' : def.label);
+  // sector banner when crossing into a new sector
+  const prev = w.waves[w.wave];
+  if (def && def.sector && (!prev || prev.sector !== def.sector) && SECTOR_NAMES[def.sector]) {
+    toast(`SECTOR ${def.sector} · ${SECTOR_NAMES[def.sector]}`);
+    setTimeout(() => { if (Game.screen === 'playing') toast(def.boss ? 'BOSS' : def.elite ? 'ELITE · CHAMPIONS' : def.label); }, 1900);
+  } else if (def) toast(def.boss ? 'BOSS' : def.elite ? 'ELITE · CHAMPIONS' : def.label);
   // first-ever champion wave: explain the rings so a new player can read the threat
   if (def && def.elite && !Game.meta.seenChampions) {
     Game.meta.seenChampions = true; saveMeta();
@@ -439,7 +445,7 @@ function showGameOver(won) {
   const w = Game.world;
   const s = el('div', 'screen');
   s.append(el('div', `dead-title ${won ? 'win' : 'lose'}`, won ? 'SWARM BROKEN' : 'SHIP LOST'));
-  s.append(el('div', 'stat-line', won ? 'You shattered the Weaver Queen.' : `You fell on ${w.waves[w.wave] ? w.waves[w.wave].label : 'the swarm'}.`));
+  s.append(el('div', 'stat-line', won ? 'You unwound the Chronometh and broke the Glare.' : `You fell on ${w.waves[w.wave] ? w.waves[w.wave].label : 'the swarm'}.`));
   s.append(el('div', 'stat-big', String(w.score)));
   s.append(el('div', 'stat-line', `Best: ${Game.meta.best}`));
   s.append(el('div', 'dust-line earned', `${iconSVG('spellpow')}<span>+${w.dustEarned || 0} Stardust  ·  ${Game.meta.dust || 0} total</span>`));

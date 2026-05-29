@@ -88,14 +88,14 @@ export class World {
   // Procedural escalating wave for endless mode (wave index >= scripted length).
   genWave(i) {
     const n = i - this.waves.length + 1;          // endless wave number (1+)
-    if (n % 5 === 0) { const k = n / 5; return { label: 'BOSS ' + (2 + k), boss: true, bossId: k % 2 ? 'warden' : 'queen', groups: [] }; }
-    const pool = ['grunt', 'drone', 'weaver', 'bomber', 'shielded', 'splitter', 'diver', 'warden', 'seeder'];
-    const forms = { grunt: 'grid', drone: 'grid', weaver: 'arc', bomber: 'sides', shielded: 'arc', splitter: 'grid', diver: 'stream', warden: 'arc', seeder: 'sides' };
+    if (n % 5 === 0) { const k = n / 5; return { label: 'BOSS ' + (2 + k), boss: true, bossId: ['queen', 'warden', 'chrono'][k % 3], groups: [] }; }
+    const pool = ['grunt', 'drone', 'weaver', 'bomber', 'shielded', 'splitter', 'diver', 'warden', 'seeder', 'pulsar', 'strobe'];
+    const forms = { grunt: 'grid', drone: 'grid', weaver: 'arc', bomber: 'sides', shielded: 'arc', splitter: 'grid', diver: 'stream', warden: 'arc', seeder: 'sides', pulsar: 'arc', strobe: 'grid' };
     const groups = [];
     const picks = 2 + (n % 3 === 0 ? 1 : 0);
     for (let k = 0; k < picks; k++) {
       const type = pool[Math.floor(this.rng() * pool.length)];
-      const heavy = type === 'shielded' || type === 'bomber' || type === 'warden' || type === 'seeder';
+      const heavy = type === 'shielded' || type === 'bomber' || type === 'warden' || type === 'seeder' || type === 'pulsar';
       const count = heavy ? 2 + Math.floor(n / 5) : 4 + Math.floor(n / 2);
       groups.push({ type, count: Math.min(heavy ? 5 : 12, count), formation: forms[type], delay: 0.9 });
     }
@@ -158,15 +158,18 @@ export class World {
   spawnBoss(bossId = 'queen') {
     sfx.bossWarn();
     this.state = 'fighting';
-    const warden = bossId === 'warden';
-    const hp = (warden ? 1100 : 900) + this.wave * 30;
+    const BOSSES = {
+      queen:  { name: 'THE WEAVER QUEEN', color: '#ff4d9d', r: 60, hp: 900 },
+      warden: { name: 'THE GRAVE WARDEN', color: '#6b6bff', r: 64, hp: 1100 },
+      chrono: { name: 'THE CHRONOMETH',   color: '#ffd14d', r: 62, hp: 1000 },
+    };
+    const b = BOSSES[bossId] || BOSSES.queen;
+    const hp = b.hp + this.wave * 30;
     this.boss = this.enemies.spawn((e) => {
       e.type = 'boss'; e.bossId = bossId;
-      e.def = warden
-        ? { name: 'THE GRAVE WARDEN', color: '#6b6bff', contact: 22 }
-        : { name: 'THE WEAVER QUEEN', color: '#ff4d9d', contact: 22 };
+      e.def = { name: b.name, color: b.color, contact: 22 };
       e.x = WORLD_W / 2; e.y = -120; e.baseX = WORLD_W / 2; e.baseY = 170;
-      e.r = warden ? 64 : 60; e.maxHp = hp; e.hp = hp; e.score = 1000; e.contact = 22;
+      e.r = b.r; e.maxHp = hp; e.hp = hp; e.score = 1000; e.contact = 22;
       e.mode = 'boss'; e.isBoss = true; e.flash = 0; e.frozen = 0; e.burnT = 0; e.burnDmg = 0;
       e.spawnAnim = 1.2; e.phase = 0; e.atkT = 2.4; e.atkMode = 0; e.spin = 0; e.dir = 1; e.shield = 0; e.tele = 0; e.pullT = 0;
     });
@@ -492,11 +495,17 @@ export class World {
       // shooting
       if (e.def.fireEvery && e.spawnAnim <= 0) {
         e.fireT -= dt * speedMult;
-        if (e.def.shoot === 'beam') {
-          // two-stage: lock the player's position 0.7s out (telegraph), then fire there
-          if (!e.locking && e.fireT <= 0.7) { e.locking = true; e.lockX = p.x; e.lockY = p.y; }
-          e.teleP = e.locking ? clamp(1 - e.fireT / 0.7, 0, 1) : 0;
-          if (e.fireT <= 0) { this.fireBeam(e); e.locking = false; e.teleP = 0; e.fireT = (e.def.fireEvery[0] + this.rng() * (e.def.fireEvery[1] - e.def.fireEvery[0])) * e.fireMult; }
+        if (e.def.shoot === 'beam' || e.def.shoot === 'pulse') {
+          // two-stage with a 0.7s telegraph. Beam locks the player's position; pulse
+          // is radial so it just charges in place to a fixed beat (a metronome).
+          if (e.def.shoot === 'beam' && !e.locking && e.fireT <= 0.7) { e.locking = true; e.lockX = p.x; e.lockY = p.y; }
+          const charging = e.def.shoot === 'pulse' ? e.fireT <= 0.7 : e.locking;
+          e.teleP = charging ? clamp(1 - e.fireT / 0.7, 0, 1) : 0;
+          if (e.fireT <= 0) {
+            if (e.def.shoot === 'beam') this.fireBeam(e); else this.firePulse(e);
+            e.locking = false; e.teleP = 0;
+            e.fireT = (e.def.fireEvery[0] + this.rng() * (e.def.fireEvery[1] - e.def.fireEvery[0])) * e.fireMult;
+          }
         } else if (e.fireT <= 0) {
           this.enemyShoot(e);
           e.fireT = (e.def.fireEvery[0] + this.rng() * (e.def.fireEvery[1] - e.def.fireEvery[0])) * e.fireMult;
@@ -532,6 +541,16 @@ export class World {
     sfx.hit();
   }
 
+  // Pulsar: a slow, sparse radial ring on a fixed beat. Gaps are readable; right
+  // after it fires the area near the pulsar is briefly clear — that's your fire window.
+  firePulse(e) {
+    const n = 14;
+    const sp = 130;
+    const base = this.rng() * 0.2;
+    for (let i = 0; i < n; i++) this.spawnEBullet(e.x, e.y, (i / n) * TAU + base, sp, '#ffe14d', { r: 7 });
+    addTrauma(0.12); sfx.hit();
+  }
+
   // Seeder: drop a slow proximity orb that pops into a ring
   spawnMine(e) {
     this.eBullets.spawn((b) => {
@@ -563,7 +582,8 @@ export class World {
       if (e.x < 90) { e.x = 90; e.dir = 1; } else if (e.x > WORLD_W - 90) { e.x = WORLD_W - 90; e.dir = -1; }
       e.y = e.baseY + Math.sin(this.time * 1.2) * 20;
     }
-    e.spin += dt * (warden ? 0.8 : 2);
+    const chrono = e.bossId === 'chrono';
+    e.spin += dt * (warden ? 0.8 : chrono ? 1.2 : 2);
     // phase by hp
     const frac = e.hp / e.maxHp;
     e.phase = frac > 0.66 ? 0 : frac > 0.33 ? 1 : 2;
@@ -578,9 +598,9 @@ export class World {
       p.x += Math.cos(a) * 120 * dt; p.y += Math.sin(a) * 120 * dt;
     }
     if (e.atkT <= 0) {
-      if (warden) this.wardenAttack(e); else this.bossAttack(e);
+      if (warden) this.wardenAttack(e); else if (chrono) this.chronoAttack(e); else this.bossAttack(e);
       e.atkMode = (e.atkMode + 1) % 3;
-      const base = warden ? 2.6 : 2.2;
+      const base = warden ? 2.6 : chrono ? 2.4 : 2.2;
       e.atkT = base - e.phase * (warden ? 0.4 : 0.5);
     }
     if (p.iframes <= 0 && p.invuln <= 0 && hit(e.x, e.y, e.r, p.x, p.y, p.r)) this.hurtPlayer(e.contact);
@@ -640,6 +660,34 @@ export class World {
           b.r = 9; b.dmg = 8; b.color = IND; b.life = 6; b.mine = false; b.fuse = 0; b.holdT = 0.5;
         });
       }
+    }
+    sfx.hit();
+  }
+
+  // The Chronometh: a clockwork tyrant of the Glare. Carves the global fire/hold
+  // rhythm with slow radial Ticks; sweeping clock-hands; one fast aimed poke.
+  // Phases tighten the beat (offset double-rings, then overlapping rhythms).
+  chronoAttack(e) {
+    const p = this.player;
+    const AMBER = '#ffd14d', CYAN = '#46e8ff';
+    const ring = (n, sp, rot, col) => { for (let i = 0; i < n; i++) this.spawnEBullet(e.x, e.y, (i / n) * TAU + rot, sp, col, { r: 7 }); };
+    if (e.atkMode === 0) {
+      // The Tick — the sector-signature slow radial pulse (charges via e.tele core glow)
+      ring(18, 135, e.spin, AMBER);
+      if (e.phase >= 1) ring(20, 150, e.spin + Math.PI / 20, AMBER);          // phase 1: offset second ring (narrower gap)
+      if (e.phase >= 2) ring(16, 110, e.spin + Math.PI / 16, CYAN);           // phase 2: overlapping inner rhythm
+      addTrauma(0.2);
+    } else if (e.atkMode === 1) {
+      // Sweep hand — a line of bullets along the long clock-hand, spread by speed
+      const sweep = (a) => { for (let i = 0; i < 6; i++) this.spawnEBullet(e.x, e.y, a, 150 + i * 18, AMBER, { r: 6 }); };
+      sweep(e.spin * 3);
+      if (e.phase >= 1) sweep(e.spin * 3 + Math.PI);                          // phase 1+: double hand
+      addTrauma(0.12);
+    } else {
+      // Aimed poke — the one fast attack; punishes camping
+      const a = angle(e.x, e.y, p.x, p.y);
+      const offs = e.phase >= 2 ? [-0.12, 0, 0.12] : [-0.08, 0.08];
+      for (const off of offs) this.spawnEBullet(e.x, e.y, a + off, e.phase >= 2 ? 260 : 240, CYAN, { r: 7 });
     }
     sfx.hit();
   }

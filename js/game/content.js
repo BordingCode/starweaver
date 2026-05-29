@@ -45,6 +45,15 @@ export const ENEMIES = {
     name: 'Seeder', hp: 12, r: 20, color: '#9bff6b', score: 28, contact: 10,
     slow: true, fireEvery: [2.0, 2.7], shoot: 'mine',
   },
+  // --- Sector 3 archetypes (pulse & exposure) ---
+  pulsar: { // anchors, charges on a fixed beat, then unleashes a slow readable ring — creates fire/hold windows
+    name: 'Pulsar', hp: 16, r: 22, color: '#ffe14d', score: 32, contact: 10,
+    anchor: true, holdY: 200, fireEvery: [2.4, 2.4], shoot: 'pulse',
+  },
+  strobe: { // fast strafing skirmisher raking spread3 — keeps you from settling between pulses
+    name: 'Strobe', hp: 8, r: 16, color: '#46e8ff', score: 20, contact: 12,
+    sine: true, fast: true, fireEvery: [1.1, 1.8], shoot: 'spread3',
+  },
 };
 
 // ---------------- ARCANA (active spells) ----------------
@@ -161,6 +170,15 @@ export function buildWaves() {
     { label: 'WAVE 14', sector: 2, groups: [ { type: 'seeder', count: 4, formation: 'grid' }, { type: 'bomber', count: 4, formation: 'sides' } ] },
     { label: 'WAVE 15', sector: 2, groups: [ { type: 'warden', count: 2, formation: 'arc' }, { type: 'seeder', count: 2, formation: 'sides' }, { type: 'diver', count: 4, formation: 'stream', delay: 1.2 } ] },
     { label: 'BOSS', boss: true, bossId: 'warden', sector: 2, groups: [] },
+    // --- Sector 3: The Glare (pulse & exposure — time your stillness) ---
+    { label: 'WAVE 17', sector: 3, groups: [ { type: 'pulsar', count: 2, formation: 'arc' }, { type: 'grunt', count: 5, formation: 'grid' } ] },
+    { label: 'WAVE 18', sector: 3, groups: [ { type: 'strobe', count: 5, formation: 'grid' }, { type: 'pulsar', count: 1, formation: 'arc' } ] },
+    { label: 'WAVE 19', sector: 3, groups: [ { type: 'pulsar', count: 2, formation: 'sides' }, { type: 'strobe', count: 4, formation: 'stream', delay: 0.7 } ] },
+    { label: 'WAVE 20', sector: 3, groups: [ { type: 'pulsar', count: 2, formation: 'arc' }, { type: 'warden', count: 1, formation: 'sides' }, { type: 'drone', count: 4, formation: 'grid' } ] },
+    { label: 'ELITE', sector: 3, elite: true, groups: [ { type: 'pulsar', count: 2, formation: 'arc' }, { type: 'strobe', count: 3, formation: 'grid' }, { type: 'shielded', count: 1, formation: 'grid' } ] },
+    { label: 'WAVE 22', sector: 3, groups: [ { type: 'strobe', count: 6, formation: 'grid' }, { type: 'seeder', count: 2, formation: 'sides' }, { type: 'pulsar', count: 1, formation: 'arc' } ] },
+    { label: 'WAVE 23', sector: 3, groups: [ { type: 'pulsar', count: 3, formation: 'arc' }, { type: 'diver', count: 4, formation: 'stream', delay: 1.0 }, { type: 'strobe', count: 3, formation: 'sides' } ] },
+    { label: 'BOSS', boss: true, bossId: 'chrono', sector: 3, groups: [] },
   ];
 }
 
