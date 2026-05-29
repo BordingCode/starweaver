@@ -264,7 +264,14 @@ function drawBoss(ctx, w) {
   ctx.beginPath(); ctx.arc(0, 0, e.r * 0.7, 0, TAU); ctx.fill();
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#05030f'; ctx.beginPath(); ctx.arc(0, 0, e.r * 0.4, 0, TAU); ctx.fill();
-  ctx.fillStyle = e.phase === 2 ? '#ffd166' : '#fff'; ctx.beginPath(); ctx.arc(0, 0, e.r * 0.22, 0, TAU); ctx.fill();
+  // charging core telegraph: grows + brightens just before an attack
+  const tele = e.tele || 0;
+  const coreR = e.r * (0.22 + tele * 0.22);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = tele > 0.5 ? '#fff' : (e.phase === 2 ? '#ffd166' : '#34f5ff');
+  ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8 + tele * 22;
+  ctx.beginPath(); ctx.arc(0, 0, coreR, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
   ctx.restore();
   // boss hp bar at top
   const bw = WORLD_W - 80, bx = 40, by = 70;

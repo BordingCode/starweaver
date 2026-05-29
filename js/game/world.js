@@ -106,12 +106,23 @@ export class World {
       e.x = WORLD_W / 2; e.y = -120; e.baseX = WORLD_W / 2; e.baseY = 170;
       e.r = 60; e.maxHp = hp; e.hp = hp; e.score = 1000; e.contact = 22;
       e.mode = 'boss'; e.isBoss = true; e.flash = 0; e.frozen = 0; e.burnT = 0; e.burnDmg = 0;
-      e.spawnAnim = 1.2; e.phase = 0; e.atkT = 2.2; e.atkMode = 0; e.spin = 0; e.dir = 1; e.shield = 0;
+      e.spawnAnim = 1.2; e.phase = 0; e.atkT = 2.2; e.atkMode = 0; e.spin = 0; e.dir = 1; e.shield = 0; e.tele = 0;
     });
   }
 
   win() { this.state = 'won'; this.over = true; this.won = true; sfx.win(); if (this.onGameOver) this.onGameOver(true); }
-  die() { if (this.over) return; this.state = 'dead'; this.over = true; this.won = false; sfx.lose(); FX.trauma = 1; if (this.onGameOver) this.onGameOver(false); }
+  die() {
+    if (this.over) return;
+    this.state = 'dead'; this.over = true; this.won = false;
+    const p = this.player;
+    sfx.explode(true); sfx.lose();
+    FX.trauma = 1; hitStop(0.12); screenFlash(0.6, '255,84,112');
+    burst(p.x, p.y, 70, { color: '#aef6ff', speed: 360, life: 1.0, r: 4 });
+    burst(p.x, p.y, 40, { color: '#ff5470', speed: 240, life: 0.8, r: 3 });
+    shockwave(p.x, p.y, { color: '#fff', max: 220, dur: 0.7, width: 6 });
+    if (navigator.vibrate) navigator.vibrate([60, 40, 80]);
+    if (this.onGameOver) this.onGameOver(false);
+  }
 
   // -------- main step --------
   update(dt, input) {
@@ -427,6 +438,9 @@ export class World {
     const frac = e.hp / e.maxHp;
     e.phase = frac > 0.66 ? 0 : frac > 0.33 ? 1 : 2;
     e.atkT -= dt * (1 + (1 - frac) * 0.6);
+    // telegraph: charge the core in the final 0.5s before an attack
+    e.tele = clamp(1 - e.atkT / 0.5, 0, 1);
+    if (e.tele > 0.4 && Math.random() < 0.5) burst(e.x, e.y, 1, { color: '#fff', speed: 60, dir: -Math.PI / 2 + (Math.random() - 0.5), spread: 0.4, life: 0.2, r: 2 });
     if (e.atkT <= 0) {
       this.bossAttack(e);
       e.atkMode = (e.atkMode + 1) % 3;
