@@ -196,4 +196,13 @@ export const PACTS = [
   { id: 'storm', name: 'Pact of the Storm', icon: 'chainhit',
     curse: 'Champions carry an extra affix.', boon: '+50% spell power, -25% spell cooldowns.',
     apply: (w) => { w.affixNBonus += 1; w.player.spellPower *= 1.5; w.player.spellCdMult *= 0.75; } },
+  { id: 'swarm', name: 'Pact of the Swarm', icon: 'multishot',
+    curse: 'More enemies become Champions.', boon: '+1 projectile per volley.',
+    apply: (w) => { w.affixFracBonus += 0.2; w.player.bulletCount += 1; w.player.spread = Math.max(w.player.spread, 0.18); } },
+  { id: 'ruin', name: 'Pact of Ruin', icon: 'pierce',
+    curse: 'Champions carry an extra affix.', boon: 'Bullets pierce +2 and fly 10% faster.',
+    apply: (w) => { w.affixNBonus += 1; w.player.pierce += 2; w.player.bulletSpeed *= 1.1; } },
+  { id: 'famine', name: 'Pact of Famine', icon: 'lifesteal',
+    curse: 'No pickups drop.', boon: 'Heal on every kill; heal to full now.',
+    apply: (w) => { w.pickupMult = 0; w.player.lifesteal += 2.5; w.player.hp = w.player.maxHp; } },
 ];
