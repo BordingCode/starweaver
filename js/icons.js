@@ -29,10 +29,21 @@ const P = {
   spellpow: '<path d="M12 3l2.5 6L21 11l-6.5 2L12 19l-2.5-6L3 11l6.5-2z"/>',
   spellcd: '<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',
   overcharge: '<path d="M11 2 4 13h6l-1 9 8-12h-6l1-8z"/><path d="M18 3l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>',
+  // --- UI icons ---
+  sound: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 8a5 5 0 0 1 0 8M18.5 6a8 8 0 0 1 0 12"/>',
+  muted: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M22 9l-6 6M16 9l6 6"/>',
+  pause: '<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
+  warn: '<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17v.5"/>',
 };
 
 export function iconSVG(id) {
   const inner = P[id];
   if (!inner) return '';
   return `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+}
+
+// Resolve an upgrade/spell card's icon to SVG: try its spell id, then its own id,
+// then its `icon` field (which may name another SVG). Never falls back to text/emoji.
+export function cardIcon(u) {
+  return iconSVG(u.spell) || iconSVG(u.id) || iconSVG(u.icon) || '';
 }

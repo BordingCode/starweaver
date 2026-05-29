@@ -7,7 +7,7 @@ import { World } from './game/world.js';
 import { drawWorld } from './game/render.js';
 import { UPGRADES, SPELLS, RARITY_WEIGHT, PACTS, ENEMIES, AFFIXES } from './game/content.js';
 import { initAudio, resumeAudio, setMuted, isMuted, sfx, startMusic, stopMusic, setMusicIntensity, setSfx, setBossMusic } from './audio.js';
-import { iconSVG } from './icons.js';
+import { iconSVG, cardIcon } from './icons.js';
 import { SHOP, costOf, dustEarned, applyMeta } from './game/meta.js';
 
 const canvas = document.getElementById('game');
@@ -37,7 +37,7 @@ const BOSS_NAMES = { queen: 'THE WEAVER QUEEN', warden: 'THE GRAVE WARDEN', chro
 let bossBannerEl = null;
 function bossBanner(name) {
   if (bossBannerEl) bossBannerEl.remove();
-  const b = el('div', 'boss-banner show', `<div class="bb-warn">⚠ WARNING ⚠</div><div class="bb-name">${name || 'BOSS'}</div>`);
+  const b = el('div', 'boss-banner show', `<div class="bb-warn">${iconSVG('warn')}<span>WARNING</span>${iconSVG('warn')}</div><div class="bb-name">${name || 'BOSS'}</div>`);
   document.body.append(b); bossBannerEl = b;
   setTimeout(() => { if (b.isConnected) { b.classList.add('out'); setTimeout(() => b.remove(), 520); } }, 1600);
 }
@@ -66,11 +66,11 @@ function buildHUD() {
   toastEl = el('div', 'toast');
   document.body.append(toastEl);
 
-  muteBtn = el('button', 'mute-btn', isMuted() ? '🔇' : '🔊');
-  muteBtn.addEventListener('click', () => { muteBtn.textContent = setMuted(!isMuted()) ? '🔇' : '🔊'; Game.meta.muted = isMuted(); saveMeta(); });
+  muteBtn = el('button', 'mute-btn', iconSVG(isMuted() ? 'muted' : 'sound'));
+  muteBtn.addEventListener('click', () => { const m = setMuted(!isMuted()); muteBtn.innerHTML = iconSVG(m ? 'muted' : 'sound'); Game.meta.muted = isMuted(); saveMeta(); });
   document.body.append(muteBtn);
 
-  pauseBtn = el('button', 'mute-btn pause-btn', '❚❚');
+  pauseBtn = el('button', 'mute-btn pause-btn', iconSVG('pause'));
   pauseBtn.addEventListener('click', () => pauseGame());
   document.body.append(pauseBtn);
 
@@ -99,7 +99,7 @@ function pauseGame() {
   const w = Game.world;
   const lo = el('div', 'loadout');
   const counts = w.upCounts || {};
-  Object.keys(counts).forEach((id) => { const u = UPGRADES.find((x) => x.id === id); if (u) lo.append(el('div', 'chip', `${iconSVG(id)}<span>${u.name}${counts[id] > 1 ? ' ×' + counts[id] : ''}</span>`)); });
+  Object.keys(counts).forEach((id) => { const u = UPGRADES.find((x) => x.id === id); if (u) lo.append(el('div', 'chip', `${cardIcon(u)}<span>${u.name}${counts[id] > 1 ? ' ×' + counts[id] : ''}</span>`)); });
   (w.pacts || []).forEach((id) => { const pc = PACTS.find((x) => x.id === id); if (pc) lo.append(el('div', 'chip pact-chip', `${iconSVG(pc.icon)}<span>${pc.name.replace('Pact of ', '')}</span>`)); });
   if (lo.children.length) s.append(lo);
   const resume = el('button', 'btn', '▶ Resume');
@@ -459,9 +459,8 @@ function showUpgrade() {
   const picks = weightedPick();
   picks.forEach((u) => {
     const c = el('div', `card rar-${u.rarity}`);
-    const iconKey = u.spell || u.id;
     c.append(
-      el('div', 'card-icon', iconSVG(iconKey) || u.icon),
+      el('div', 'card-icon', cardIcon(u)),
       (() => { const b = el('div', 'card-body'); b.append(el('div', 'card-name', u.name), el('div', 'card-desc', u.desc)); return b; })(),
       el('div', 'card-tag', u.rarity),
     );
@@ -484,7 +483,7 @@ function showUpgrade() {
   // show current loadout chips
   const lo = el('div', 'loadout');
   const counts = w.upCounts || {};
-  Object.keys(counts).forEach((id) => { const u = UPGRADES.find((x) => x.id === id); if (u) lo.append(el('div', 'chip', `${iconSVG(id)}<span>${u.name}${counts[id] > 1 ? ' ×' + counts[id] : ''}</span>`)); });
+  Object.keys(counts).forEach((id) => { const u = UPGRADES.find((x) => x.id === id); if (u) lo.append(el('div', 'chip', `${cardIcon(u)}<span>${u.name}${counts[id] > 1 ? ' ×' + counts[id] : ''}</span>`)); });
   if (lo.children.length) s.append(lo);
   app.append(s);
   syncDebug();
