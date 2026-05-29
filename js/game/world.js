@@ -223,7 +223,10 @@ export class World {
       this.waveClearT -= dt;
       if (this.waveClearT <= 0) {
         const def = this.waves[this.wave];
-        if (def && def.boss && !this.endless) { this.win(); }
+        // You only WIN after the final scripted boss. Earlier bosses (end of each
+        // sector) flow on into the next sector via the normal wave-clear reward.
+        const laterBoss = !this.endless && this.waves.some((wv, i) => i > this.wave && wv && wv.boss);
+        if (def && def.boss && !this.endless && !laterBoss) { this.win(); }
         else if (this.onWaveClear) this.onWaveClear();
       }
     }
