@@ -24,6 +24,7 @@ export function drawWorld(ctx, w, view, alpha) {
   drawEnemies(ctx, w);
   drawBoss(ctx, w);
   drawPlayerBullets(ctx, w);
+  drawPickups(ctx, w);
   drawOrbits(ctx, w);
   drawPlayer(ctx, w);
 
@@ -115,6 +116,30 @@ function drawPlayer(ctx, w) {
     ctx.beginPath(); ctx.arc(0, 0, p.r + 9, 0, TAU); ctx.stroke();
   }
   ctx.restore();
+}
+
+function drawPickups(ctx, w) {
+  if (!w.pickups) return;
+  w.pickups.forEach((o) => {
+    const col = o.kind === 'shield' ? '#34f5ff' : '#5dffb0';
+    const blink = o.life < 2 && Math.floor(performance.now() / 120) % 2 === 0;
+    const yy = o.y + Math.sin(o.bob) * 2;
+    ctx.save();
+    ctx.globalAlpha = blink ? 0.4 : 1;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(o.x, yy, o.r, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.shadowBlur = 0;
+    // glyph
+    ctx.fillStyle = '#05030f'; ctx.lineWidth = 2.5; ctx.strokeStyle = '#05030f';
+    if (o.kind === 'shield') {
+      ctx.beginPath(); ctx.arc(o.x, yy, o.r * 0.5, 0, TAU); ctx.stroke();
+    } else { // plus
+      ctx.fillRect(o.x - 1.6, yy - o.r * 0.5, 3.2, o.r); ctx.fillRect(o.x - o.r * 0.5, yy - 1.6, o.r, 3.2);
+    }
+    ctx.restore();
+  });
 }
 
 function drawOrbits(ctx, w) {

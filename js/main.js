@@ -26,7 +26,7 @@ function el(tag, cls, html) { const n = document.createElement(tag); if (cls) n.
 function clearApp() { app.replaceChildren(); }
 
 // ---------------- HUD ----------------
-let hud = null, hpFill = null, shFill = null, scoreEl = null, comboEl = null, waveEl = null, dock = null, spellBtns = [], muteBtn = null, toastEl = null;
+let hud = null, hpFill = null, shFill = null, scoreEl = null, comboEl = null, waveEl = null, dock = null, spellBtns = [], muteBtn = null, pauseBtn = null, toastEl = null;
 function buildHUD() {
   removeHUD();
   hud = el('div', 'hud');
@@ -51,6 +51,10 @@ function buildHUD() {
   muteBtn.addEventListener('click', () => { muteBtn.textContent = setMuted(!isMuted()) ? '🔇' : '🔊'; Game.meta.muted = isMuted(); saveMeta(); });
   document.body.append(muteBtn);
 
+  pauseBtn = el('button', 'mute-btn pause-btn', '❚❚');
+  pauseBtn.addEventListener('click', () => pauseGame());
+  document.body.append(pauseBtn);
+
   // spell dock
   dock = el('div', 'spell-dock'); spellBtns = [];
   const p = Game.world.player;
@@ -63,7 +67,22 @@ function buildHUD() {
   });
   document.body.append(dock);
 }
-function removeHUD() { [hud, dock, muteBtn, toastEl].forEach((n) => n && n.remove()); hud = dock = muteBtn = toastEl = null; spellBtns = []; }
+function removeHUD() { [hud, dock, muteBtn, pauseBtn, toastEl].forEach((n) => n && n.remove()); hud = dock = muteBtn = pauseBtn = toastEl = null; spellBtns = []; }
+
+function pauseGame() {
+  if (Game.screen !== 'playing') return;
+  Game.screen = 'paused';
+  const s = el('div', 'screen');
+  s.append(el('div', 'title-tag', 'paused'));
+  s.append(el('div', 'pick-title', 'STARWEAVER'));
+  const resume = el('button', 'btn', '▶ Resume');
+  resume.addEventListener('click', () => { app.replaceChildren(); Game.screen = 'playing'; });
+  const quit = el('button', 'btn ghost', 'Abandon Run');
+  quit.addEventListener('click', () => { stopMusic(); removeHUD(); showTitle(); });
+  const row = el('div', 'row'); row.append(resume, quit);
+  s.append(row);
+  app.append(s);
+}
 
 function drawHUD() {
   const w = Game.world, p = w.player;

@@ -17,6 +17,7 @@ export class World {
     this.enemies = new Pool(() => ({}), (o) => resetEnemy(o));
     this.pBullets = new Pool(() => ({ hitSet: new Set() }), (o) => { o.hitSet.clear(); });
     this.eBullets = new Pool(() => ({}), (o) => {});
+    this.pickups = new Pool(() => ({}), (o) => {});
     this.waves = buildWaves();
     this.wave = 0;
     this.score = 0;
@@ -126,6 +127,7 @@ export class World {
     this.stepPlayerBullets(dt);
     this.stepEnemyBullets(dt);
     this.stepOrbits(dt);
+    this.stepPickups(dt);
 
     // wave clear check
     if (this.state === 'fighting' && this.spawnQueue.length === 0 && this.enemies.countAlive === 0 && this.time > 0.5) {
@@ -570,6 +572,17 @@ export class World {
     addTrauma(big ? 0.8 : 0.16);
     hitStop(big ? 0.12 : 0.03);
     if (big) { screenFlash(0.5, '255,77,157'); this.boss = null; }
+    // chance to drop a pickup (more likely from tanky foes / bosses); biased to what you lack
+    if (!silent) {
+      const tanky = e.maxHp >= 14 || big;
+      const chance = big ? 1 : tanky ? 0.35 : 0.10;
+      if (this.rng() < chance) {
+        const wantHeal = p.hp < p.maxHp * 0.85 || p.maxShield === 0;
+        const kind = big ? 'heal' : (wantHeal ? 'heal' : (this.rng() < 0.5 && p.maxShield > 0 ? 'shield' : 'heal'));
+        const count = big ? 4 : 1;
+        for (let k = 0; k < count; k++) this.dropPickup(e.x + (this.rng() - 0.5) * 40, e.y, kind);
+      }
+    }
     // splitter
     if (e.def.splits && !silent) {
       for (let i = 0; i < 2; i++) {
@@ -577,6 +590,45 @@ export class World {
         this.spawnEnemy(e.def.splits, bx, e.y, bx, e.y, 'formation');
       }
     }
+  }
+
+  // -------- pickups --------
+  dropPickup(x, y, kind) {
+    this.pickups.spawn((o) => { o.x = x; o.y = y; o.vy = 36 + this.rng() * 24; o.vx = (this.rng() - 0.5) * 30; o.r = 11; o.kind = kind; o.life = 8; o.bob = this.rng() * TAU; });
+  }
+
+  stepPickups(dt) {
+    const p = this.player;
+    this.pickups.forEach((o) => {
+      o.life -= dt; o.bob += dt * 4;
+      if (o.life <= 0) { o.alive = false; return; }
+      const d = dist(o.x, o.y, p.x, p.y);
+      if (d < 110) { // magnet toward the ship
+        const a = angle(o.x, o.y, p.x, p.y); const pull = 260 * (1 - d / 110) + 40;
+        o.vx += Math.cos(a) * pull * dt * 6; o.vy += Math.sin(a) * pull * dt * 6;
+      } else { o.vy = Math.min(o.vy + 20 * dt, 80); o.vx *= 0.96; }
+      o.x += o.vx * dt; o.y += o.vy * dt;
+      if (o.y > WORLD_H + 20) { o.alive = false; return; }
+      if (hit(o.x, o.y, o.r, p.x, p.y, p.r + 6)) {
+        o.alive = false; this.collectPickup(o.kind);
+      }
+    });
+  }
+
+  collectPickup(kind) {
+    const p = this.player;
+    sfx.pickup();
+    if (kind === 'shield' && p.maxShield > 0) {
+      p.shield = Math.min(p.maxShield, p.shield + p.maxShield * 0.5);
+      floatText(p.x, p.y - 20, '+SHIELD', { color: '#34f5ff', size: 16 });
+      burst(p.x, p.y, 10, { color: '#34f5ff', speed: 120, life: 0.4, r: 2.5 });
+    } else {
+      const heal = Math.round(p.maxHp * 0.12);
+      p.hp = Math.min(p.maxHp, p.hp + heal);
+      floatText(p.x, p.y - 20, '+' + heal, { color: '#5dffb0', size: 18 });
+      burst(p.x, p.y, 10, { color: '#5dffb0', speed: 120, life: 0.4, r: 2.5 });
+    }
+    shockwave(p.x, p.y, { color: kind === 'shield' ? '#34f5ff' : '#5dffb0', max: 44, dur: 0.3, width: 3 });
   }
 
   hurtPlayer(amt) {
