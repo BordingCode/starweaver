@@ -46,6 +46,7 @@ export class World {
     if (i >= this.waves.length) this.waves[i] = this.genWave(i); // endless: procedural
     const def = this.waves[i];
     if (!def) { this.win(); return; }
+    this.player.invuln = Math.max(this.player.invuln, i === 0 ? 1.4 : 0.7); // grace as a wave begins
     if (def.boss) { this.spawnBoss(); return; }
     let order = 0;
     for (const g of def.groups) {
@@ -375,7 +376,7 @@ export class World {
       }
 
       // reaching the bottom hurts the player and removes the enemy
-      if (e.y > WORLD_H - 70) { this.hurtPlayer(12); this.killEnemy(e, true); return; }
+      if (e.y > WORLD_H - 70) { this.hurtPlayer(8); this.killEnemy(e, true); return; }
 
       // shooting
       if (e.def.fireEvery && e.spawnAnim <= 0) {
@@ -398,7 +399,7 @@ export class World {
     const p = this.player;
     const shoot = e.def.shoot;
     const a = angle(e.x, e.y, p.x, p.y);
-    const speed = 200 + this.wave * 6;
+    const speed = 175 + this.wave * 6;
     const fire = (ang, sp = speed) => this.spawnEBullet(e.x, e.y + e.r, ang, sp, e.def.color);
     if (shoot === 'aimed') fire(a);
     else if (shoot === 'double') { fire(a - 0.12); fire(a + 0.12); }
@@ -409,7 +410,7 @@ export class World {
   spawnEBullet(x, y, a, speed, color) {
     this.eBullets.spawn((b) => {
       b.x = x; b.y = y; b.vx = Math.cos(a) * speed; b.vy = Math.sin(a) * speed;
-      b.r = 6.5; b.dmg = 8; b.color = color || '#ff5470'; b.life = 5;
+      b.r = 6.5; b.dmg = 6; b.color = color || '#ff5470'; b.life = 5;
     });
   }
 

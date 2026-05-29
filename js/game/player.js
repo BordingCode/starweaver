@@ -4,11 +4,11 @@ import { WORLD_W, WORLD_H } from '../engine/canvas.js';
 export function makePlayer() {
   return {
     x: WORLD_W / 2, y: WORLD_H - 150, r: 15,
-    hp: 100, maxHp: 100,
+    hp: 120, maxHp: 120,
     shield: 0, maxShield: 0, shieldRegen: 8, shieldDelay: 0, // shield regens after not being hit
     // weapon
-    fireRate: 4.2, fireT: 0,
-    bulletDmg: 7, bulletSpeed: 620, bulletCount: 1, spread: 0, bulletSize: 5,
+    fireRate: 4.6, fireT: 0,
+    bulletDmg: 8, bulletSpeed: 640, bulletCount: 1, spread: 0, bulletSize: 5,
     pierce: 0, ricochet: 0, homing: 0,
     crit: 0.05, critMult: 1.8,
     rearShot: false, sideShot: false,

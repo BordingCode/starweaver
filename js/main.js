@@ -290,3 +290,6 @@ boot();
 // expose for debugging/tests
 window.__startRun = startRun;
 window.Game = Game;
+window.__view = view;
+window.__toScreen = (x, y) => ({ x: view.offX + x * view.scale, y: view.offY + y * view.scale });
+window.pauseGame = pauseGame;
