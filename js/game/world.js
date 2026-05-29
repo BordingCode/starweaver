@@ -176,7 +176,18 @@ export class World {
     });
   }
 
-  win() { this.state = 'won'; this.over = true; this.won = true; sfx.win(); if (this.onGameOver) this.onGameOver(true); }
+  win() {
+    this.state = 'won'; this.over = true; this.won = true; sfx.win();
+    // celebratory fireworks — earning the victory across three sectors
+    const cols = ['#ffd166', '#34f5ff', '#5dffb0', '#ff4d9d', '#9d6bff'];
+    for (let i = 0; i < 6; i++) {
+      const x = 70 + this.rng() * (WORLD_W - 140), y = 120 + this.rng() * 360;
+      shockwave(x, y, { color: cols[i % cols.length], max: 130, dur: 0.85, width: 4 });
+      burst(x, y, 22, { color: cols[i % cols.length], speed: 240, life: 0.9, r: 3 });
+    }
+    screenFlash(0.4, '255,209,102'); addTrauma(0.4);
+    if (this.onGameOver) this.onGameOver(true);
+  }
   die() {
     if (this.over) return;
     const p = this.player;
