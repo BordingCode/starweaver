@@ -374,9 +374,14 @@ function drawBoss(ctx, w) {
       ctx.lineTo(Math.cos(a + 0.10) * e.r, Math.sin(a + 0.10) * e.r);
       ctx.closePath(); ctx.fill();
     }
-    const hand = (ang, len, wdt) => { ctx.save(); ctx.rotate(ang); ctx.beginPath(); ctx.moveTo(0, -len); ctx.lineTo(wdt, 0); ctx.lineTo(-wdt, 0); ctx.closePath(); ctx.fill(); ctx.restore(); };
-    hand(e.spin * 3, e.r * 1.3, 5);    // long hand
-    hand(e.spin * 1.1, e.r * 0.8, 6);  // short hand
+    // clock hands in a bright contrasting tone so the clockwork reads clearly
+    ctx.save();
+    ctx.fillStyle = e.flash > 0 ? '#fff' : '#fff4c8';
+    const hand = (ang, len, wdt) => { ctx.save(); ctx.rotate(ang); ctx.beginPath(); ctx.moveTo(0, -len); ctx.lineTo(wdt, -wdt); ctx.lineTo(wdt, 0); ctx.lineTo(-wdt, 0); ctx.lineTo(-wdt, -wdt); ctx.closePath(); ctx.fill(); ctx.restore(); };
+    hand(e.spin * 3, e.r * 1.35, 4);    // long minute hand
+    hand(e.spin * 1.1, e.r * 0.85, 6);  // short hour hand
+    ctx.beginPath(); ctx.arc(0, 0, 7, 0, TAU); ctx.fill(); // center hub
+    ctx.restore();
   } else {
     // rotating crown of blades
     for (let i = 0; i < 8; i++) {
