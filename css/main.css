@@ -201,6 +201,8 @@ html, body {
 .row { display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap; }
 .loadout { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width: 360px; }
 .chip { font-size:12px; padding:6px 12px; border-radius: 20px; background: rgba(255,255,255,.05); box-shadow: inset 0 0 0 1px var(--panel-edge); color: var(--muted); letter-spacing:.04em; }
+.chip.pact-chip { color: var(--magenta); box-shadow: inset 0 0 0 1px rgba(255,77,157,.45); }
+.chip.pact-chip .ic { color: var(--magenta); }
 
 /* ---------- Boss intro banner ---------- */
 .boss-banner {

@@ -94,6 +94,14 @@ function pauseGame() {
   const s = el('div', 'screen');
   s.append(el('div', 'title-tag', 'paused'));
   s.append(el('div', 'pick-title', 'STARWEAVER'));
+  s.append(el('div', 'stat-line', `Wave ${Game.world.wave + 1}  ·  Score ${Game.world.score}`));
+  // current build — upgrade chips + any pacts forged
+  const w = Game.world;
+  const lo = el('div', 'loadout');
+  const counts = w.upCounts || {};
+  Object.keys(counts).forEach((id) => { const u = UPGRADES.find((x) => x.id === id); if (u) lo.append(el('div', 'chip', `${iconSVG(id)}<span>${u.name}${counts[id] > 1 ? ' ×' + counts[id] : ''}</span>`)); });
+  (w.pacts || []).forEach((id) => { const pc = PACTS.find((x) => x.id === id); if (pc) lo.append(el('div', 'chip pact-chip', `${iconSVG(pc.icon)}<span>${pc.name.replace('Pact of ', '')}</span>`)); });
+  if (lo.children.length) s.append(lo);
   const resume = el('button', 'btn', '▶ Resume');
   resume.addEventListener('click', () => { app.replaceChildren(); Game.screen = 'playing'; });
   const quit = el('button', 'btn ghost', 'Abandon Run');
