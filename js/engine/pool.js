@@ -12,8 +12,8 @@ export class Pool {
     }
     if (!o) { o = this.factory(); this.items.push(o); }
     this.reset(o);
-    o.alive = true;
     if (init) init(o);
+    o.alive = true; // mark alive only after a successful init, so a throw can't leave a half-built object
     return o;
   }
   forEach(fn) {

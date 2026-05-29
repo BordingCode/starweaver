@@ -6,7 +6,8 @@ import { sfx } from '../audio.js';
 import { ENEMIES, SPELLS, buildWaves } from './content.js';
 import { makePlayer } from './player.js';
 
-const MOVE_DEADZONE = 1.2;   // world units of pointer move below which we count as "still"
+const MOVE_DEADZONE = 1.6;   // world units of pointer move below which we count as "still"
+const MOVE_HOLD = 0.07;      // seconds the pointer must settle before guns re-engage (jitter guard)
 const FIRE_OFFSET_Y = 64;    // ship floats this far above the finger
 
 export class World {
@@ -75,6 +76,7 @@ export class World {
 
   spawnEnemy(type, x, y, baseX, baseY, mode) {
     const def = ENEMIES[type];
+    if (!def) { console.warn('spawnEnemy: unknown type', JSON.stringify(type)); return; }
     const hpScale = 1 + this.wave * 0.12;
     this.enemies.spawn((e) => {
       e.type = type; e.def = def;
@@ -171,7 +173,11 @@ export class World {
     }
     p.x = clamp(p.x, p.r, WORLD_W - p.r);
     p.y = clamp(p.y, 90, WORLD_H - 40);
-    p.moving = input.active && moveMag > MOVE_DEADZONE && p.dashT <= 0;
+    // settle timer: any real drag keeps guns off for a few frames, so finger jitter
+    // doesn't flicker firing; releasing the finger re-engages guns immediately.
+    if (input.active && moveMag > MOVE_DEADZONE) p.moveHold = MOVE_HOLD;
+    else if (p.moveHold > 0) p.moveHold -= dt;
+    p.moving = input.active && p.moveHold > 0 && p.dashT <= 0;
 
     // shield regen
     if (p.maxShield > 0) {
@@ -330,6 +336,7 @@ export class World {
     this.formPhase += dt * 0.9;
     const p = this.player;
     this.enemies.forEach((e) => {
+      if (!e.def) { e.alive = false; return; } // safety: never step a half-built enemy
       if (e.spawnAnim > 0) e.spawnAnim -= dt;
       if (e.flash > 0) e.flash -= dt * 5;
       // burn DoT

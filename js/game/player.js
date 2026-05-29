@@ -25,7 +25,7 @@ export function makePlayer() {
     spellCd: [0, 0, 0],        // remaining cooldown per equipped spell
     // dash runtime
     iframes: 0, dashVx: 0, dashVy: 0, dashT: 0,
-    moving: false, fireReadyShake: 0,
+    moving: false, moveHold: 0, fireReadyShake: 0,
     invuln: 0,
     // visuals
     flash: 0,
