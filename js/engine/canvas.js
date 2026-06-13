@@ -25,15 +25,22 @@ export class CanvasView {
     this.canvas.style.width = cssW + 'px';
     this.canvas.style.height = cssH + 'px';
 
-    // cover-fit the world into the screen (the world fills the screen; we crop overflow
-    // on the long axis). Portrait phones are taller than 9:16, so we scale to width and
-    // let the world extend vertically — handled by drawing background to the full canvas.
+    // contain-fit the world into the screen so the whole 9:16 world (all of x∈[0,540])
+    // is always visible — no cropped side edges. On taller phones this leaves letterbox
+    // margins; the background is painted across the full canvas (see begin/render) so the
+    // bars are filled with the starfield and it still reads full-bleed.
     const sx = cssW / WORLD_W;
     const sy = cssH / WORLD_H;
-    this.scale = Math.max(sx, sy);
+    this.scale = Math.min(sx, sy);
     this.offX = (cssW - WORLD_W * this.scale) / 2;
     this.offY = (cssH - WORLD_H * this.scale) / 2;
     this.dpr = dpr;
+    // letterbox margins expressed in world units — the background fills out to these
+    // (negative -> beyond the world rect) so the bars are painted with the starfield.
+    this.bgX0 = -this.offX / this.scale;
+    this.bgY0 = -this.offY / this.scale;
+    this.bgX1 = WORLD_W - this.bgX0;
+    this.bgY1 = WORLD_H - this.bgY0;
   }
 
   // begin a frame: set transform so we can draw in world coords.

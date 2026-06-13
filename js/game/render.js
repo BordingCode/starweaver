@@ -17,7 +17,7 @@ function easeOutBack(t) { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(
 export function drawWorld(ctx, w, view, alpha) {
   // Background is drawn stable (no shake) and covers every pixel, so we don't
   // need a separate full-screen clear. Only the foreground shakes.
-  drawBackground(ctx, w);
+  drawBackground(ctx, w, view);
   if (!w) { drawFlash(ctx, view); return; }
 
   ctx.save();
@@ -66,10 +66,15 @@ const SECTOR_NEBULA = {
   3: ['rgba(74,52,26,0.52)', 'rgba(34,24,34,0.5)', 'rgba(8,5,13,0.22)'],  // The Glare — warm exposure
 };
 let nebulaGrad = null, nebulaKey = null;
-function drawBackground(ctx, w) {
+function drawBackground(ctx, w, view) {
   const t = w ? w.bgShift : performance.now() / 60;
   const sector = (w && w.waves && w.waves[w.wave] && w.waves[w.wave].sector) || 1;
   const key = SECTOR_NEBULA[sector] ? sector : 1;
+  // contain-fit leaves letterbox bars outside [0,WORLD]; fill out to the canvas edge
+  // (in world units) so the starfield/nebula covers the whole screen — no black bars.
+  const x0 = view ? Math.min(0, view.bgX0) : 0, y0 = view ? Math.min(0, view.bgY0) : 0;
+  const x1 = view ? Math.max(WORLD_W, view.bgX1) : WORLD_W, y1 = view ? Math.max(WORLD_H, view.bgY1) : WORLD_H;
+  const bw = x1 - x0, bh = y1 - y0;
   // nebula glow — rebuild only when the sector (palette) changes
   if (!nebulaGrad || nebulaKey !== key) {
     nebulaKey = key;
@@ -80,9 +85,9 @@ function drawBackground(ctx, w) {
     nebulaGrad.addColorStop(1, cols[2]);
   }
   ctx.fillStyle = '#05030f';
-  ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+  ctx.fillRect(x0, y0, bw, bh);
   ctx.fillStyle = nebulaGrad;
-  ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+  ctx.fillRect(x0, y0, bw, bh);
   for (let i = 0; i < LAYERS.length; i++) {
     const l = LAYERS[i]; const arr = stars[i];
     ctx.fillStyle = l.color;

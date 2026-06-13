@@ -33,7 +33,7 @@ export function makePlayer() {
     spellCd: [0, 0, 0],        // remaining cooldown per equipped spell
     // dash runtime
     iframes: 0, dashVx: 0, dashVy: 0, dashT: 0,
-    moving: false, moveHold: 0, fireReadyShake: 0,
+    moving: false, moveHold: 0, wasInputActive: false, fireReadyShake: 0,
     recoil: 0,            // visual gun kickback (decays)
     readyPulse: 0,        // brief ring when guns re-engage after moving
     invuln: 0,

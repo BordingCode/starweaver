@@ -85,9 +85,9 @@ export const SPELLS = {
 export const UPGRADES = [
   { id: 'multishot', name: 'Split Shot', icon: '🔱', rarity: 'rare', desc: '+1 projectile per volley.', max: 6,
     apply: (p) => { p.bulletCount += 1; p.spread = Math.max(p.spread, 0.18); } },
-  { id: 'firerate', name: 'Overclock', icon: '⏩', rarity: 'common', desc: '+22% fire rate.', max: 8,
+  { id: 'firerate', name: 'Overclock', icon: '⏩', rarity: 'common', desc: '+22% fire rate.', max: 5,
     apply: (p) => { p.fireRate *= 1.22; } },
-  { id: 'damage', name: 'Hardpoint', icon: '🗡️', rarity: 'common', desc: '+30% bullet damage.', max: 10,
+  { id: 'damage', name: 'Hardpoint', icon: '🗡️', rarity: 'common', desc: '+30% bullet damage.', max: 6,
     apply: (p) => { p.bulletDmg *= 1.3; } },
   { id: 'pierce', name: 'Railshot', icon: '➶', rarity: 'rare', desc: 'Bullets pierce +1 enemy.', max: 4,
     apply: (p) => { p.pierce += 1; p.bulletSpeed *= 1.05; } },

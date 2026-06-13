@@ -14,7 +14,17 @@ const canvas = document.getElementById('game');
 const app = document.getElementById('app');
 const view = new CanvasView(canvas);
 const input = new Input(canvas, view);
-window.addEventListener('resize', () => view.resize());
+// On iOS the address bar showing/hiding fires `resize` mid-run; re-letterboxing then
+// makes the playfield visibly jump. While actually playing, ignore height-only shrink/grow
+// (the width is unchanged) and debounce the rest; a real rotation/width change still resizes.
+let _lastW = window.innerWidth, _resizeT = null;
+window.addEventListener('resize', () => {
+  const w = window.innerWidth;
+  if (Game.screen === 'playing' && w === _lastW) return; // height-only (address bar) — keep the view stable
+  _lastW = w;
+  clearTimeout(_resizeT);
+  _resizeT = setTimeout(() => view.resize(), 120);
+});
 
 FX.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 

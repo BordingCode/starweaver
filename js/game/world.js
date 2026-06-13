@@ -112,7 +112,9 @@ export class World {
   spawnEnemy(type, x, y, baseX, baseY, mode, affixes) {
     const def = ENEMIES[type];
     if (!def) return; // safety: ignore unknown types rather than crash
-    const hpScale = (1 + this.wave * 0.22) * this.sectorMul();
+    // HP scales additively AND a touch multiplicatively (1.03^wave) so the swarm keeps pace
+    // with the player's multiplicative DPS upgrades instead of melting in late waves.
+    const hpScale = (1 + this.wave * 0.22) * Math.pow(1.03, this.wave) * this.sectorMul();
     this.enemies.spawn((e) => {
       e.type = type; e.def = def;
       e.x = x; e.y = y - 40; e.baseX = baseX; e.baseY = baseY;
@@ -187,7 +189,7 @@ export class World {
   sectorMul() { const w = this.wave; const s = w >= 16 ? 1.70 : w >= 8 ? 1.30 : 1.00; return s * (1 + (this.ascension || 0) * 0.15); }
   // Enemy bullet damage SCALES (it used to be a flat ~6 forever — the #1 reason the
   // game was winnable first-try). Grows per-wave and steps up per sector + ascension.
-  ebDmg(base = 5) { return Math.round(base * (1 + this.wave * 0.10) * this.sectorMul()); }
+  ebDmg(base = 5) { return Math.round(base * (1 + this.wave * 0.13) * this.sectorMul()); }
 
   // escalating XP cost, retuned steeper so player power doesn't outrun the threat
   xpForLevel(L) { return Math.round(60 * Math.pow(1.42, L - 1)); }
@@ -305,10 +307,16 @@ export class World {
     p.x = clamp(p.x, p.r, WORLD_W - p.r);
     p.y = clamp(p.y, 90, WORLD_H - 40);
     // settle timer: any real drag keeps guns off for a few frames, so finger jitter
-    // doesn't flicker firing; releasing the finger re-engages guns immediately.
+    // doesn't flicker firing. The same settle now applies on RELEASE too — lifting the
+    // finger re-engages guns a beat later (MOVE_HOLD), so tap-tap can't out-DPS weaving.
+    const wasActive = p.wasInputActive;
     if (input.active && moveMag > MOVE_DEADZONE) p.moveHold = MOVE_HOLD;
+    // just released while still in motion (guns not yet re-engaged): settle a beat first,
+    // so lifting the finger doesn't instantly out-DPS weaving via tap-tap.
+    else if (wasActive && !input.active && p.moveHold > 0) p.moveHold = MOVE_HOLD;
     else if (p.moveHold > 0) p.moveHold -= dt;
-    p.moving = input.active && p.moveHold > 0 && p.dashT <= 0;
+    p.wasInputActive = input.active;
+    p.moving = p.moveHold > 0 && p.dashT <= 0;
     if (wasMoving && !p.moving) p.readyPulse = 1; // guns just re-engaged — telegraph the fire window
 
     // shield regen
