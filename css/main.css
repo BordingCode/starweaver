@@ -90,6 +90,8 @@ html, body {
 
 .hint { color: var(--muted); font-size: 14px; max-width: 320px; line-height: 1.5; }
 .stat-line { color: var(--ink); font-size: 16px; letter-spacing: .04em; }
+.stat-line.death-cause { color: var(--muted); font-size: 14px; font-style: italic; margin-top: -4px; }
+.stat-line.death-cause::first-letter { text-transform: uppercase; }
 .stat-big { font-family:'Orbitron',sans-serif; font-weight:900; font-size: clamp(30px,11vw,56px); color: var(--gold); text-shadow:0 0 20px rgba(255,209,102,.5); }
 .dead-title { font-family:'Orbitron',sans-serif; font-weight:900; font-size: clamp(28px,9vw,48px); letter-spacing:.1em; }
 .dead-title.win { color: var(--green); text-shadow:0 0 24px rgba(93,255,176,.6); }

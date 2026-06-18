@@ -159,7 +159,7 @@ export const UPGRADES = [
 export function buildWaves() {
   return [
     // --- Sector 1: The Weave ---
-    { label: 'WAVE 1', groups: [ { type: 'grunt', count: 6, formation: 'grid' } ] },
+    { label: 'WAVE 1', noFire: 4, groups: [ { type: 'grunt', count: 6, formation: 'grid' } ] },
     { label: 'WAVE 2', groups: [ { type: 'grunt', count: 6, formation: 'grid' }, { type: 'drone', count: 4, formation: 'arc' } ] },
     { label: 'WAVE 3', groups: [ { type: 'drone', count: 6, formation: 'grid' }, { type: 'diver', count: 3, formation: 'stream', delay: 1.2 } ] },
     { label: 'WAVE 4', groups: [ { type: 'weaver', count: 6, formation: 'arc' }, { type: 'bomber', count: 2, formation: 'sides' } ] },

@@ -292,7 +292,7 @@ function showTitle() {
   row.append(hangar, guideBtn, setBtn);
   s.append(row);
   if (Game.meta.best > 0) s.append(el('div', 'stat-line', `Best run: ${Game.meta.best}`));
-  s.append(el('div', 'hint', 'Drag from anywhere to steer — the further you drag, the faster you fly; <b>release to stop and fire</b>. So weave through bullets, then plant and unload. Tap the orbs to <b>Blink</b> (a safe dash) and cast arcana. Kill foes to <b>level up</b> and pick powers.'));
+  s.append(el('div', 'hint', 'Drag to fly. <b>Release to fire.</b>'));
   clearApp(); app.append(s);
   syncDebug();
 }
@@ -619,6 +619,10 @@ function showGameOver(won) {
   const s = el('div', 'screen');
   s.append(el('div', `dead-title ${won ? 'win' : 'lose'}`, won ? 'SWARM BROKEN' : 'SHIP LOST'));
   s.append(el('div', 'stat-line', won ? 'You unwound the Chronometh and broke the Glare.' : `You fell on ${w.waves[w.wave] ? w.waves[w.wave].label : 'the swarm'}.`));
+  if (!won && w.lastHit) {
+    const pct = Math.round(w.lastHit.hpBefore / w.player.maxHp * 100);
+    s.append(el('div', 'stat-line death-cause', `${w.lastHit.label} caught you at ${pct}% HP.`));
+  }
   if (won && w.tierUnlocked) s.append(el('div', 'tier-unlock', `★ STARBOUND TIER ${w.tierUnlocked} UNLOCKED ★`));
   s.append(el('div', 'stat-big', String(w.score)));
   s.append(el('div', 'stat-line', `Best: ${Game.meta.best}`));

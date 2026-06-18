@@ -23,6 +23,7 @@ export function drawWorld(ctx, w, view, alpha) {
   ctx.save();
   ctx.translate(FX.shakeX, FX.shakeY);
 
+  drawFloorDanger(ctx, w);
   drawEnemyBullets(ctx, w);
   drawEnemies(ctx, w);
   drawBoss(ctx, w);
@@ -37,6 +38,41 @@ export function drawWorld(ctx, w, view, alpha) {
   drawVignette(ctx, w);
   drawFlash(ctx, view);
 }
+
+// Floor-breach telegraph: enemies that reach the bottom deal scaled contact damage
+// with no other warning. When any (non-anchor) enemy nears the breach line, glow a
+// faint pulsing danger rim along the bottom edge — pure read of existing state.
+const BREACH_Y = WORLD_H - 70;   // matches the breach trigger in world.js
+const WARN_BAND = 80;            // start warning this many px above the line
+let floorGrad = null;
+function drawFloorDanger(ctx, w) {
+  if (!w || w.over) return;
+  let closest = Infinity;
+  w.enemies.forEach((e) => {
+    if (e.def && e.def.anchor) return;          // anchors never breach
+    if (e.spawnAnim > 0) return;                 // still arriving
+    const d = BREACH_Y - e.y;                     // px above the breach line
+    if (d < closest) closest = d;
+  });
+  if (closest > WARN_BAND) return;
+  // 0 (just entered band) → 1 (at the line)
+  const intensity = clamp01(1 - Math.max(0, closest) / WARN_BAND);
+  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 130);
+  const a = (0.12 + 0.4 * intensity) * (0.6 + 0.4 * pulse);
+  const h = 70 + 40 * intensity;
+  if (!floorGrad) {
+    floorGrad = ctx.createLinearGradient(0, WORLD_H, 0, WORLD_H - 110);
+    floorGrad.addColorStop(0, 'rgba(255,40,70,1)');
+    floorGrad.addColorStop(1, 'rgba(255,40,70,0)');
+  }
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = floorGrad;
+  ctx.fillRect(0, WORLD_H - h, WORLD_W, h);
+  ctx.restore();
+}
+function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 
 let vignetteGrad = null;
 function drawVignette(ctx, w) {

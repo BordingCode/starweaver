@@ -33,6 +33,9 @@ export class World {
     this.endless = false;
     this.rerolls = 0; this.revives = 0; this.luck = 0;
     this.time = 0;
+    this.lastHit = null;       // {label, hpBefore} — what dealt the final blow (death screen)
+    this._shotSrc = 'enemy fire'; // transient label tagged onto each enemy bullet at spawn
+    this.noFireUntil = 0;      // wave-1 safe-to-learn window: enemies hold fire until this time
     this.shotsToCredit = 0;
     this.targetX = this.player.x; this.targetY = this.player.y;
     this.moveDirX = 0; this.moveDirY = 1; // last joystick direction (drives dash); default downward
@@ -67,6 +70,9 @@ export class World {
     if (i >= this.waves.length) this.waves[i] = this.genWave(i); // endless: procedural
     const def = this.waves[i];
     if (!def) { this.win(); return; }
+    // safe-to-learn window: on a `noFire` wave the swarm holds fire so the core
+    // verb (fly → release → fire) can be learned with zero incoming threat.
+    this.noFireUntil = def.noFire ? this.time + (typeof def.noFire === 'number' ? def.noFire : 4) : 0;
     this.player.invuln = Math.max(this.player.invuln, i === 0 ? 1.4 : 0.7); // grace as a wave begins
     if (def.boss) { this.spawnBoss(def.bossId || 'queen'); return; }
     // Champion affixes: Elite waves stamp 1 on every enemy; endless waves stamp
@@ -541,10 +547,11 @@ export class World {
       }
 
       // reaching the bottom hurts the player and removes the enemy (anchors never do)
-      if (!e.def.anchor && e.y > WORLD_H - 70) { this.hurtPlayer(Math.round(8 * this.sectorMul())); this.killEnemy(e, true); return; }
+      if (!e.def.anchor && e.y > WORLD_H - 70) { this.hurtPlayer(Math.round(8 * this.sectorMul()), `a ${e.def.name} breaching your line`); this.killEnemy(e, true); return; }
 
-      // shooting
-      if (e.def.fireEvery && e.spawnAnim <= 0) {
+      // shooting (held during a wave-1 safe-to-learn window — fireT is left untouched
+      // so the swarm opens up on its normal staggered schedule once the window ends)
+      if (e.def.fireEvery && e.spawnAnim <= 0 && this.time >= this.noFireUntil) {
         e.fireT -= dt * speedMult;
         if (e.def.shoot === 'beam' || e.def.shoot === 'pulse') {
           // two-stage with a 0.7s telegraph. Beam locks the player's position; pulse
@@ -566,7 +573,7 @@ export class World {
 
       // contact with player
       if (p.iframes <= 0 && p.invuln <= 0 && hit(e.x, e.y, e.r, p.x, p.y, p.r)) {
-        this.hurtPlayer(Math.round(e.contact * this.sectorMul()));
+        this.hurtPlayer(Math.round(e.contact * this.sectorMul()), `colliding with a ${e.def.name}`);
         if (e.mode === 'dive') this.killEnemy(e, true);
       }
     });
@@ -574,6 +581,7 @@ export class World {
 
   enemyShoot(e) {
     const p = this.player;
+    this._shotSrc = `a ${e.def.name}'s shot`;
     const shoot = e.def.shoot;
     const a = angle(e.x, e.y, p.x, p.y);
     const speed = (180 + this.wave * 8) * (0.9 + 0.1 * (this.wave >= 16 ? 3 : this.wave >= 8 ? 2 : 1));
@@ -587,6 +595,7 @@ export class World {
 
   // Warden: fire a tight 5-bullet cross at the position it locked 0.7s ago (slow + readable)
   fireBeam(e) {
+    this._shotSrc = `a ${e.def.name}'s beam`;
     const a = angle(e.x, e.y, e.lockX, e.lockY);
     const sp = 165;
     for (const off of [-0.06, -0.03, 0, 0.03, 0.06]) this.spawnEBullet(e.x, e.y + e.r, a + off, sp, '#ff8ad8');
@@ -596,6 +605,7 @@ export class World {
   // Pulsar: a slow, sparse radial ring on a fixed beat. Gaps are readable; right
   // after it fires the area near the pulsar is briefly clear — that's your fire window.
   firePulse(e) {
+    this._shotSrc = `a ${e.def.name}'s pulse`;
     const n = 14;
     const sp = 130;
     const base = this.rng() * 0.2;
@@ -605,17 +615,19 @@ export class World {
 
   // Seeder: drop a slow proximity orb that pops into a ring
   spawnMine(e) {
+    const src = `a ${e.def.name}'s mine`;
     this.eBullets.spawn((b) => {
       b.x = e.x; b.y = e.y + e.r; b.vx = 0; b.vy = 62; b.r = 9; b.dmg = this.ebDmg(7);
-      b.color = '#9bff6b'; b.life = 6; b.mine = true; b.fuse = 4.5; b.holdT = 0;
+      b.color = '#9bff6b'; b.life = 6; b.mine = true; b.fuse = 4.5; b.holdT = 0; b.src = src;
     });
   }
 
   spawnEBullet(x, y, a, speed, color, opts) {
+    const src = (opts && opts.src) || this._shotSrc || 'enemy fire';
     this.eBullets.spawn((b) => {
       b.x = x; b.y = y; b.vx = Math.cos(a) * speed; b.vy = Math.sin(a) * speed;
       b.r = (opts && opts.r) || 6.5; b.dmg = this.ebDmg((opts && opts.dmg) || 5); b.color = color || '#ff5470'; b.life = (opts && opts.life) || 5;
-      b.mine = false; b.fuse = 0; b.holdT = 0; // clear pooled mine/hold state
+      b.mine = false; b.fuse = 0; b.holdT = 0; b.src = src; // clear pooled mine/hold state; remember the shooter
     });
   }
 
@@ -688,7 +700,7 @@ export class World {
     }
     e.atkT -= dt * (1 + (1 - frac) * 0.5);
     // Overclock echo: a delayed repeat of the Chronometh's Tick
-    if (e.echoT > 0) { e.echoT -= dt; if (e.echoT <= 0) { for (let i = 0; i < 18; i++) this.spawnEBullet(e.x, e.y, (i / 18) * TAU + e.spin, 135, '#ffd14d', { r: 7 }); addTrauma(0.15); } }
+    if (e.echoT > 0) { e.echoT -= dt; if (e.echoT <= 0) { this._shotSrc = `${e.def.name}'s echo`; for (let i = 0; i < 18; i++) this.spawnEBullet(e.x, e.y, (i / 18) * TAU + e.spin, 135, '#ffd14d', { r: 7 }); addTrauma(0.15); } }
     // telegraph charge
     e.tele = clamp(1 - e.atkT / 0.6, 0, 1);
     if (e.tele > 0.4 && Math.random() < 0.5) burst(e.x, e.y, 1, { color: warden ? '#cfe' : '#fff', speed: 60, dir: -Math.PI / 2 + (Math.random() - 0.5), spread: 0.4, life: 0.2, r: 2 });
@@ -706,11 +718,12 @@ export class World {
       const base = warden ? 2.6 : chrono ? 2.4 : 2.2;
       e.atkT = base - e.phase * (warden ? 0.4 : 0.5);
     }
-    if (p.iframes <= 0 && p.invuln <= 0 && hit(e.x, e.y, e.r, p.x, p.y, p.r)) this.hurtPlayer(Math.round(e.contact * this.sectorMul()));
+    if (p.iframes <= 0 && p.invuln <= 0 && hit(e.x, e.y, e.r, p.x, p.y, p.r)) this.hurtPlayer(Math.round(e.contact * this.sectorMul()), `slamming into ${e.def.name}`);
   }
 
   bossAttack(e) {
     const p = this.player;
+    this._shotSrc = `${e.def.name}'s barrage`;
     const a = angle(e.x, e.y, p.x, p.y);
     const sp = 210;
     if (e.atkMode === 0) {
@@ -740,6 +753,7 @@ export class World {
   // Grave Warden: denial & timing. Walls-with-a-gap / gravity pull+ring / fake-out cross + lance.
   wardenAttack(e) {
     const p = this.player;
+    this._shotSrc = `${e.def.name}'s lance`;
     const IND = '#6b6bff';
     if (e.phase === 2 && e.atkMode === 0) {
       // COLLAPSE (desperation): drag the player inward, then a tidal wall to dash through
@@ -772,7 +786,7 @@ export class World {
         const ang = i * (TAU / 4) + 0.0;
         this.eBullets.spawn((b) => {
           b.x = e.x; b.y = e.y; b.vx = Math.cos(ang) * 150; b.vy = Math.sin(ang) * 150;
-          b.r = 9; b.dmg = this.ebDmg(8); b.color = IND; b.life = 6; b.mine = false; b.fuse = 0; b.holdT = 0.5;
+          b.r = 9; b.dmg = this.ebDmg(8); b.color = IND; b.life = 6; b.mine = false; b.fuse = 0; b.holdT = 0.5; b.src = `${e.def.name}'s cross`;
         });
       }
     }
@@ -784,6 +798,7 @@ export class World {
   // Phases tighten the beat (offset double-rings, then overlapping rhythms).
   chronoAttack(e) {
     const p = this.player;
+    this._shotSrc = `${e.def.name}'s clockwork`;
     const AMBER = '#ffd14d', CYAN = '#46e8ff';
     const ring = (n, sp, rot, col) => { for (let i = 0; i < n; i++) this.spawnEBullet(e.x, e.y, (i / n) * TAU + rot, sp, col, { r: 7 }); };
     if (e.atkMode === 0) {
@@ -889,13 +904,14 @@ export class World {
       }
       if (b.life <= 0 || b.y < -30 || b.y > WORLD_H + 30 || b.x < -30 || b.x > WORLD_W + 30) { b.alive = false; return; }
       if (p.iframes <= 0 && p.invuln <= 0 && hit(b.x, b.y, b.r, p.x, p.y, p.r * 0.8)) {
-        b.alive = false; this.hurtPlayer(b.dmg);
+        b.alive = false; this.hurtPlayer(b.dmg, b.src);
       }
     });
   }
 
   detonateMine(b) {
     b.alive = false;
+    this._shotSrc = b.src || 'a mine';
     shockwave(b.x, b.y, { color: '#9bff6b', max: 60, dur: 0.35, width: 3 });
     burst(b.x, b.y, 8, { color: '#9bff6b', speed: 120, life: 0.4, r: 2.5 });
     for (let i = 0; i < 6; i++) this.spawnEBullet(b.x, b.y, (i / 6) * TAU, 135, '#9bff6b');
@@ -978,6 +994,7 @@ export class World {
     if (big) { screenFlash(0.5, '255,77,157'); this.boss = null; }
     // Volatile champion: detonates into a ring of bullets on death
     if (e.detonate && !silent && !big) {
+      this._shotSrc = `a ${e.def.name}'s death-blast`;
       shockwave(e.x, e.y, { color: '#ff9f43', max: 70, dur: 0.35, width: 4 });
       for (let i = 0; i < 8; i++) this.spawnEBullet(e.x, e.y, (i / 8) * TAU + this.rng() * 0.3, 150, '#ff9f43', { dmg: e.detonate });
       addTrauma(0.12);
@@ -1058,7 +1075,7 @@ export class World {
     shockwave(p.x, p.y, { color: kind === 'shield' ? '#34f5ff' : '#5dffb0', max: 44, dur: 0.3, width: 3 });
   }
 
-  hurtPlayer(amt) {
+  hurtPlayer(amt, src) {
     const p = this.player;
     if (p.iframes > 0 || p.invuln > 0 || this.over) return;
     if (p.shield > 0) {
@@ -1067,6 +1084,8 @@ export class World {
     }
     p.shieldDelay = 2.5;
     if (amt <= 0) { sfx.hit(); return; }
+    // remember what landed the blow + the HP we had going in (for the death-cause line)
+    this.lastHit = { label: src || 'enemy fire', hpBefore: p.hp };
     p.hp -= amt; p.flash = 1; p.invuln = 0.6;
     sfx.hurt();
     addTrauma(0.4); screenFlash(0.3, '255,84,112'); hitStop(0.05);
