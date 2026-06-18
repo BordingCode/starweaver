@@ -18,6 +18,11 @@ export function makePlayer() {
     execute: 0, momentum: false, stillT: 0, glass: false, shatter: false, critLifesteal: false,
     championDmg: 1, championLoot: 0,   // synergy with Elite champions
     adrenaline: false, kineticBarrier: false, splinter: 0,
+    // run-long passive RELICS (interaction flags, read at world hooks). volleyCount
+    // ticks every volley so Overpressure can pierce on every 5th.
+    relicPermafrost: false, relicOverpressure: false, relicBlinkTrail: false,
+    relicGlacialBlink: false, relicPredation: false, relicExecution: false,
+    relicEcho: false, relicFragments: false, volleyCount: 0,
     lowWarned: false,    // one-shot critical-HP audio cue armed/fired
 
     burstShots: 1, pendingBursts: 0, burstT: 0,

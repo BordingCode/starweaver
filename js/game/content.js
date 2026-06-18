@@ -208,6 +208,46 @@ export const AFFIX_KEYS = Object.keys(AFFIXES);
 // Offered when an Elite wave is cleared. Each pact pairs a permanent run-curse
 // with a permanent run-boon. apply(w) mutates the world / its player. Declining
 // is always an option (see main.js) and instead gives a normal upgrade pick.
+// ---------------- RELICS (passive, run-long interaction flags) ----------------
+// Offered as a 1-of-3 pick when a BOSS is cleared. Unlike upgrade cards (which add
+// flat stats that drift to the same stack) a relic changes HOW an existing system
+// works — it's read at an existing world hook (stepPlayerBullets, doDash, killEnemy,
+// damageEnemy, fire). This is the combinatorial layer: a run gains a CHARACTER.
+//
+// apply(p) sets a flag on the player; the world reads the flag at its hook. Effects
+// must NEVER consume `world.rng()` (that would shift the seeded spawn/affix stream) —
+// any chance roll uses Math.random(), exactly like the existing particle/proc code.
+export const RELICS = [
+  { id: 'permafrost', name: 'Permafrost', icon: 'freeze', rarity: 'relic',
+    desc: 'When a hit freezes a foe, nearby foes are also slowed.',
+    apply: (p) => { p.relicPermafrost = true; } },
+  { id: 'overpressure', name: 'Overpressure', icon: 'pierce', rarity: 'relic',
+    desc: 'Every 5th volley pierces every enemy it touches.',
+    apply: (p) => { p.relicOverpressure = true; } },
+  { id: 'blinktrail', name: 'Cinder Wake', icon: 'burn', rarity: 'relic',
+    desc: 'Blink leaves a burning trail that scorches foes.',
+    apply: (p) => { p.relicBlinkTrail = true; } },
+  { id: 'glacialblink', name: 'Glacial Step', icon: 'shield', rarity: 'relic',
+    desc: 'Blink releases a frost pulse, freezing nearby foes.',
+    apply: (p) => { p.relicGlacialBlink = true; } },
+  { id: 'predation', name: 'Predation', icon: 'damage', rarity: 'relic',
+    desc: '+35% damage to foes above 80% health.',
+    apply: (p) => { p.relicPredation = true; } },
+  { id: 'execution', name: 'Death Mark', icon: 'critdmg', rarity: 'relic',
+    desc: 'Foes below 25% health take double damage.',
+    apply: (p) => { p.relicExecution = true; } },
+  { id: 'echo', name: 'Echo Volley', icon: 'firerate', rarity: 'relic',
+    desc: 'Each kill has a chance to fire a free volley.',
+    apply: (p) => { p.relicEcho = true; } },
+  { id: 'fragments', name: 'Champion\'s Bounty', icon: 'homing', rarity: 'relic',
+    desc: 'Slain Champions release a homing fragment that hunts the swarm.',
+    apply: (p) => { p.relicFragments = true; } },
+];
+
+// ---------------- PACTS (curse / blessing gamble) ----------------
+// Offered when an Elite wave is cleared. Each pact pairs a permanent run-curse
+// with a permanent run-boon. apply(w) mutates the world / its player. Declining
+// is always an option (see main.js) and instead gives a normal upgrade pick.
 export const PACTS = [
   { id: 'bloodlust', name: 'Pact of Bloodlust', icon: 'damage',
     curse: 'The swarm fires 25% faster.', boon: '+35% bullet damage.',

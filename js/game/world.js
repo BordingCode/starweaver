@@ -49,6 +49,8 @@ export class World {
     this.pickupMult = 1;       // scales drop chance
     this.dustMult = 1;         // scales end-of-run Stardust
     this.pacts = [];           // ids of pacts taken (for the run summary)
+    this.relics = [];          // ids of relics taken at boss-clears (run summary + HUD)
+    this.bossesCleared = 0;    // how many bosses this run has broken (gates relic offers)
   }
 
   // grant a random not-maxed epic upgrade immediately (used by Pact boons)
@@ -293,7 +295,14 @@ export class World {
     if (p.dashT > 0) {
       p.dashT -= dt;
       p.x += p.dashVx * dt; p.y += p.dashVy * dt;
-      if (Math.random() < 0.8) burst(p.x, p.y, 2, { color: '#ffd166', speed: 40, life: 0.3, r: 3 });
+      if (Math.random() < 0.8) burst(p.x, p.y, 2, { color: p.relicBlinkTrail ? '#ff9f43' : '#ffd166', speed: 40, life: 0.3, r: 3 });
+      // Cinder Wake relic: the dash path scorches (applies burn to overlapped foes).
+      if (p.relicBlinkTrail) {
+        const TR = p.r + 22;
+        this.enemies.forEach((e) => {
+          if (dist2(p.x, p.y, e.x, e.y) < (TR + e.r) * (TR + e.r)) { e.burnT = Math.max(e.burnT, 2.5); e.burnDmg = Math.max(e.burnDmg, Math.max(6, p.bulletDmg * 0.9)); }
+        });
+      }
     }
 
     // relative virtual joystick: drag direction = move direction, throttled by drag length.
@@ -362,6 +371,13 @@ export class World {
   fire(quiet) {
     const p = this.player;
     if (!quiet) sfx.shoot();
+    // Overpressure relic: every 5th volley's bullets pierce everything (deterministic
+    // counter — no RNG touched). A staggered burst counts as part of the same volley.
+    if (!quiet) {
+      p.volleyCount++;
+      this._volleyPierceAll = p.relicOverpressure && (p.volleyCount % 5 === 0);
+      if (this._volleyPierceAll) shockwave(p.x, p.y - p.r, { color: '#ffd166', max: 30, dur: 0.25, width: 3 });
+    }
     p.recoil = Math.min(6, p.recoil + 3); // visual kickback
     const dirs = [];
     const n = p.bulletCount;
@@ -384,7 +400,7 @@ export class World {
       b.x = x; b.y = y;
       b.vx = Math.cos(a) * p.bulletSpeed; b.vy = Math.sin(a) * p.bulletSpeed;
       b.r = p.bulletSize; b.dmg = dmg; b.crit = isCrit;
-      b.pierce = p.pierce; b.ricochet = p.ricochet; b.homing = p.homing;
+      b.pierce = this._volleyPierceAll ? 999 : p.pierce; b.ricochet = p.ricochet; b.homing = p.homing;
       b.burn = p.burn; b.freeze = p.freeze; b.chain = p.chainOnHit;
       b.life = 2.4; b.hitSet.clear();
     });
@@ -416,6 +432,13 @@ export class World {
     p.dashT = 0.16; p.iframes = 0.45;
     if (p.kineticBarrier) { p.shield = Math.min(Math.max(p.maxShield, 24), p.shield + (p.maxShield > 0 ? p.maxShield * 0.25 : 12)); }
     shockwave(p.x, p.y, { color: '#ffd166', max: 50, dur: 0.35, width: 3 });
+    // Glacial Step relic: Blink releases a frost pulse that freezes nearby foes.
+    if (p.relicGlacialBlink) {
+      const R = 150;
+      shockwave(p.x, p.y, { color: '#aef0ff', max: R, dur: 0.4, width: 5 });
+      burst(p.x, p.y, 12, { color: '#aef0ff', speed: 220, life: 0.4, r: 3 });
+      this.enemies.forEach((e) => { if (!e.isBoss && dist2(p.x, p.y, e.x, e.y) < R * R) e.frozen = Math.max(e.frozen, 1.6); });
+    }
     addTrauma(0.12);
   }
 
@@ -858,7 +881,15 @@ export class World {
           if (e.shield && !b.meteor) dmg *= 0.5; // bulwark shrugs off half
           this.damageEnemy(e, dmg, b.x, b.y, b.crit);
           if (b.burn > 0) { e.burnT = Math.max(e.burnT, 2.5); e.burnDmg = b.burn * 3; }
-          if (b.freeze > 0) e.frozen = Math.max(e.frozen, b.freeze * 4);
+          if (b.freeze > 0) {
+            e.frozen = Math.max(e.frozen, b.freeze * 4);
+            // Permafrost relic: the chill spreads — nearby foes are slowed too.
+            if (this.player.relicPermafrost) {
+              const R = 90;
+              this.enemies.forEach((o) => { if (o !== e && o.alive && !o.isBoss && dist2(e.x, e.y, o.x, o.y) < R * R) o.frozen = Math.max(o.frozen, b.freeze * 2.2); });
+              if (Math.random() < 0.4) burst(e.x, e.y, 2, { color: '#aef0ff', speed: 60, life: 0.3, r: 2 });
+            }
+          }
           if (b.chain > 0) this.staticArc(e, b.chain, b.dmg * 0.5);
           // pierce / ricochet
           if (b.pierce > 0) { b.pierce -= 1; }
@@ -940,6 +971,12 @@ export class World {
     if (e.dmgTaken && e.dmgTaken !== 1) dmg *= e.dmgTaken; // Armored champions shrug off part of the hit
     if (e.affixes && e.affixes.length && p.championDmg > 1) dmg *= p.championDmg; // Giantslayer
     if (e.isBoss && e.vuln > 0) dmg *= 1.5; // punish the recovery after a big attack
+    // Relic interactions keyed off the target's CURRENT health fraction (read before the hit)
+    if (e.maxHp > 0) {
+      const frac = e.hp / e.maxHp;
+      if (p.relicPredation && frac > 0.8) dmg *= 1.35;    // Predation: punish the fresh
+      if (p.relicExecution && frac < 0.25) dmg *= 2;       // Death Mark: finish the wounded
+    }
     e.hp -= dmg; e.flash = 1;
     sfx.hit();
     burst(fx, fy, crit ? 7 : 3, { color: crit ? '#ffd166' : '#fff', speed: crit ? 180 : 90, life: 0.3, r: crit ? 3 : 2 });
@@ -1025,6 +1062,23 @@ export class World {
         });
       }
     }
+    // Echo Volley relic: a kill has a chance to fire a free volley (no RNG-stream touch).
+    if (p.relicEcho && !silent && !big && Math.random() < 0.22) {
+      this.fire(true);
+      floatText(p.x, p.y - 28, 'ECHO', { color: '#34f5ff', size: 14 });
+    }
+    // Champion's Bounty relic: a slain Champion releases a homing fragment that hunts foes.
+    if (p.relicFragments && !silent && e.affixes && e.affixes.length) {
+      const t = this.nearestEnemy(e.x, e.y, 9999, new Set([e]));
+      const a = t ? angle(e.x, e.y, t.x, t.y) : -Math.PI / 2;
+      this.pBullets.spawn((b) => {
+        b.x = e.x; b.y = e.y; b.vx = Math.cos(a) * 460; b.vy = Math.sin(a) * 460;
+        b.r = 6; b.dmg = Math.max(14, p.bulletDmg * 1.6); b.crit = false;
+        b.pierce = 2; b.ricochet = 0; b.homing = 1.0; b.burn = 0; b.freeze = 0; b.chain = 0;
+        b.life = 2.6; b.hitSet.clear();
+      });
+      burst(e.x, e.y, 6, { color: '#a0ffea', speed: 140, life: 0.4, r: 2.5 });
+    }
     // splitter (native) and Splitting champion both seed minis on death
     const splitInto = e.def.splits || e.forceSplit;
     if (splitInto && !silent) {
@@ -1096,6 +1150,7 @@ export class World {
   }
 
   applyUpgrade(card) { card.apply(this.player); }
+  applyRelic(relic) { relic.apply(this.player); this.relics.push(relic.id); }
 }
 
 // ---- formation layout helpers ----

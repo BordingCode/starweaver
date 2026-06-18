@@ -5,7 +5,7 @@ import { Input } from './engine/input.js';
 import { FX, updateFX, clearFX } from './engine/fx.js';
 import { World } from './game/world.js';
 import { drawWorld } from './game/render.js';
-import { UPGRADES, SPELLS, RARITY_WEIGHT, PACTS, ENEMIES, AFFIXES } from './game/content.js';
+import { UPGRADES, SPELLS, RARITY_WEIGHT, PACTS, RELICS, ENEMIES, AFFIXES } from './game/content.js';
 import { initAudio, resumeAudio, setMuted, isMuted, sfx, startMusic, stopMusic, setMusicIntensity, setSfx, setBossMusic } from './audio.js';
 import { iconSVG, cardIcon } from './icons.js';
 import { SHOP, costOf, dustEarned, applyMeta, SHIPS, WEAPONS, applyShipWeapon } from './game/meta.js';
@@ -116,6 +116,7 @@ function pauseGame() {
   const w = Game.world;
   const lo = el('div', 'loadout');
   const counts = w.upCounts || {};
+  (w.relics || []).forEach((id) => { const r = RELICS.find((x) => x.id === id); if (r) lo.append(el('div', 'chip relic-chip', `${iconSVG(r.icon)}<span>${r.name}</span>`)); });
   Object.keys(counts).forEach((id) => { const u = UPGRADES.find((x) => x.id === id); if (u) lo.append(el('div', 'chip', `${cardIcon(u)}<span>${u.name}${counts[id] > 1 ? ' ×' + counts[id] : ''}</span>`)); });
   (w.pacts || []).forEach((id) => { const pc = PACTS.find((x) => x.id === id); if (pc) lo.append(el('div', 'chip pact-chip', `${iconSVG(pc.icon)}<span>${pc.name.replace('Pact of ', '')}</span>`)); });
   if (lo.children.length) s.append(lo);
@@ -200,6 +201,9 @@ function onWaveClear() {
   setMusicIntensity(0.2);
   const w = Game.world;
   const cleared = w.waves[w.wave];
+  // Boss-clear → offer a passive RELIC (1-of-3). The final scripted boss ends the run
+  // (handled in update() → win()), so we only ever reach here on a NON-final boss.
+  if (cleared && cleared.boss) { Game.screen = 'upgrade'; showRelics(); return; }
   if (cleared && cleared.elite) { Game.screen = 'upgrade'; showPacts(); return; }
   // Only offer an upgrade if you've banked a level-up from kills (XP curve). Otherwise
   // carry straight on — so power growth is earned, not one-free-per-wave.
@@ -385,6 +389,10 @@ function showGuide() {
   // Arcana
   scroll.append(el('div', 'guide-head', 'Arcana'));
   ['dash', 'nova', 'chain', 'storm'].forEach((id) => { const sp = SPELLS[id]; if (sp) { const r = el('div', 'guide-row'); r.append(el('span', 'guide-swatch ic-wrap', iconSVG(id) || ''), (() => { const b = el('div', 'guide-text'); b.append(el('div', 'guide-name', sp.name), el('div', 'guide-tip', sp.desc)); return b; })()); scroll.append(r); } });
+  // Relics
+  scroll.append(el('div', 'guide-head', 'Relics — the boss prize'));
+  scroll.append(el('div', 'guide-note', 'Break a boss and claim one. Relics change HOW your kit works — they stack into a build with real character.'));
+  RELICS.forEach((r) => { const row = el('div', 'guide-row'); row.append(el('span', 'guide-swatch ic-wrap', iconSVG(r.icon) || ''), (() => { const b = el('div', 'guide-text'); b.append(el('div', 'guide-name', r.name), el('div', 'guide-tip', r.desc)); return b; })()); scroll.append(row); });
   // Pacts
   scroll.append(el('div', 'guide-head', 'Pacts — the Elite gamble'));
   PACTS.forEach((p) => { const r = el('div', 'guide-row'); r.append(el('span', 'guide-swatch ic-wrap', iconSVG(p.icon) || ''), (() => { const b = el('div', 'guide-text'); b.append(el('div', 'guide-name', p.name), el('div', 'guide-tip', `<span class="g-boon">${p.boon}</span> <span class="g-curse">${p.curse}</span>`)); return b; })()); scroll.append(r); });
@@ -536,6 +544,50 @@ function showPacts() {
   syncDebug();
 }
 
+// Boss reward: a run-long PASSIVE RELIC — an interaction flag that changes HOW a
+// system works (not a flat stat). A 1-of-3 pick; this is the combinatorial layer.
+function showRelics() {
+  sfx.levelup();
+  clearApp();
+  const w = Game.world;
+  w.bossesCleared = (w.bossesCleared || 0) + 1;
+  const s = el('div', 'screen');
+  s.append(el('div', 'title-tag', 'a boss falls — claim its essence'));
+  s.append(el('div', 'pick-title', 'Choose a Relic'));
+  const cards = el('div', 'cards');
+  // offer 3 distinct relics not already held (fall back to any if the pool runs dry).
+  // Shuffle with Math.random — UI choice only, never touches the seeded gameplay RNG.
+  let avail = RELICS.filter((r) => !w.relics.includes(r.id));
+  if (avail.length < 3) avail = RELICS.slice();
+  const picks = avail.slice();
+  for (let i = picks.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [picks[i], picks[j]] = [picks[j], picks[i]]; }
+  picks.slice(0, 3).forEach((relic) => {
+    const c = el('div', 'card rar-relic relic-card');
+    c.append(
+      el('div', 'card-icon', iconSVG(relic.icon) || '✦'),
+      (() => { const b = el('div', 'card-body'); b.append(el('div', 'card-name', relic.name), el('div', 'card-desc', relic.desc)); return b; })(),
+      el('div', 'card-tag', 'relic'),
+    );
+    c.addEventListener('click', () => {
+      resumeAudio(); sfx.pact();
+      w.applyRelic(relic);
+      buildHUD();
+      toast('RELIC CLAIMED · ' + relic.name);
+      resumeAfterUpgrade();
+    });
+    cards.append(c);
+  });
+  s.append(cards);
+  // show relics already held this run
+  if (w.relics.length) {
+    const lo = el('div', 'loadout');
+    w.relics.forEach((id) => { const r = RELICS.find((x) => x.id === id); if (r) lo.append(el('div', 'chip relic-chip', `${iconSVG(r.icon)}<span>${r.name}</span>`)); });
+    s.append(lo);
+  }
+  app.append(s);
+  syncDebug();
+}
+
 function showUpgrade() {
   sfx.levelup();
   clearApp();
@@ -613,6 +665,33 @@ function showSettings() {
   syncDebug();
 }
 
+// ---------------- Between-run narrative drip (the Hades pattern) ----------------
+// A recurring voice — the LOOM, the dying star that weaves you back each time you
+// fall — advances a thread by RUN COUNT, not by winning. A non-power reason to press
+// Again: each death reveals one more line. Pure data + a gated picker, no engine work.
+// `transmissions[i]` shows once you've started run (i+1). The last line repeats once
+// the thread is told. Determinism untouched (UI only, reads Game.meta.runs).
+const LOOM_LINES = [
+  'THE LOOM: …a thread, frayed, but warm. You are the first I have caught in a long while. Fall again. I will catch you again.',
+  'THE LOOM: The swarm you call enemies were once weavers, like you. I unwound them. I am unwinding still.',
+  'THE LOOM: You fly the same arc each time and call it failure. I call it a stitch. Keep stitching.',
+  'THE LOOM: I gave the bosses their names. Do not pity them. Pity that I remember every one.',
+  'THE LOOM: You took a relic from the dead. Good. The dead have no use for character.',
+  'THE LOOM: The Glare at the end is not light. It is me, looking back at what I made.',
+  'THE LOOM: Some weavers refuse to fall twice the same way. Those are the ones I cannot unwind.',
+  'THE LOOM: I have been the dying star for so long I forgot I was once the one falling.',
+  'THE LOOM: Tier by tier you climb toward me. I am not sure I want to be reached. Climb anyway.',
+  'THE LOOM: There was another like you. They broke the Chronometh. Then they stopped flying. I miss them.',
+  'THE LOOM: Every pact you forge, you forge with a piece of me. I do not mind. I have pieces to spare.',
+  'THE LOOM: You are getting better. I should be afraid of that. I find that I am only glad.',
+  'THE LOOM: When you finally break the Glare — when you reach the loom itself — cut me loose. Promise me that.',
+  'THE LOOM: …you came back. After everything I told you. I will weave you one more time, and gladly.',
+];
+function loomLine() {
+  const r = Math.max(0, (Game.meta.runs || 0) - 1); // runs is incremented at run start
+  return LOOM_LINES[Math.min(r, LOOM_LINES.length - 1)];
+}
+
 function showGameOver(won) {
   clearApp();
   const w = Game.world;
@@ -627,12 +706,20 @@ function showGameOver(won) {
   s.append(el('div', 'stat-big', String(w.score)));
   s.append(el('div', 'stat-line', `Best: ${Game.meta.best}`));
   s.append(el('div', 'dust-line earned', `${iconSVG('spellpow')}<span>+${w.dustEarned || 0} Stardust  ·  ${Game.meta.dust || 0} total</span>`));
+  // relics claimed this run — the run's CHARACTER
+  if (w.relics && w.relics.length) {
+    const lo = el('div', 'loadout');
+    w.relics.forEach((id) => { const r = RELICS.find((x) => x.id === id); if (r) lo.append(el('div', 'chip relic-chip', `${iconSVG(r.icon)}<span>${r.name}</span>`)); });
+    s.append(el('div', 'stat-line', 'Relics claimed'), lo);
+  }
   // pacts forged this run — gives the run a little story
   if (w.pacts && w.pacts.length) {
     const lo = el('div', 'loadout');
     w.pacts.forEach((id) => { const p = PACTS.find((x) => x.id === id); if (p) lo.append(el('div', 'chip', `${iconSVG(p.icon)}<span>${p.name.replace('Pact of ', '')}</span>`)); });
     s.append(el('div', 'stat-line', 'Pacts forged'), lo);
   }
+  // the LOOM speaks — a thread that advances every time you fall (non-power restart hook)
+  s.append(el('div', 'loom-line', loomLine()));
   if (won) {
     const cont = el('button', 'btn', '▸ Endless');
     cont.addEventListener('click', () => resumeEndless());
